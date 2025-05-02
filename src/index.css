@@ -1,0 +1,47 @@
+/* Tailwind CSS 지시어 (필수) */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 전역 스타일 또는 사용자 정의 스타일 (선택 사항) */
+body {
+  /* 예: 기본 폰트, 배경 등 */
+  font-family: 'Inter', sans-serif; /* App.jsx에서 Inter 폰트를 사용하므로 여기서 설정 가능 */
+}
+
+/* 프로젝트에서 사용하는 다른 전역 스타일이나 커스텀 클래스 */
+
+/* 예시: 이전 HTML 버전에서 사용했던 스타일들 (필요에 따라 조정) */
+.content-container {
+    position: absolute;
+    max-width: 90%;
+    /* 투명도는 React 컴포넌트에서 제어하므로 여기서 설정하지 않음 */
+}
+
+.choice-button {
+    /* 기본 버튼 스타일은 Tailwind 클래스로 적용하는 것을 권장 */
+    /* 필요시 기본 패딩, 그림자 등 여기서 정의 가능 */
+    @apply py-3 px-6 rounded-lg shadow-md font-semibold;
+    @apply transition-colors duration-300 ease-in-out; /* 색상 전환 효과 */
+    /* 배경색, 글자색 등은 React 컴포넌트에서 인라인 스타일로 적용됨 */
+    cursor: pointer;
+    border: none;
+}
+.choice-button:focus {
+     /* 포커스 스타일 */
+     @apply outline-none ring-2 ring-offset-2 ring-blue-400; /* 예시 포커스 스타일 */
+}
+
+#question-text {
+     max-width: 65ch; /* 텍스트 가독성 위한 최대 너비 */
+}
+
+/* body 스타일은 React 컴포넌트 또는 여기서 직접 설정 */
+#game-body {
+    @apply min-h-screen bg-cover bg-center bg-no-repeat;
+    /* 기본 배경색은 JS에서 설정 */
+}
+
+html, body {
+    @apply h-full m-0 p-0 overflow-hidden;
+}
