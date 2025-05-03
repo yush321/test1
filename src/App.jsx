@@ -175,7 +175,7 @@ function App() {
     const [backgroundStyle, setBackgroundStyle] = useState({}); // 배경 스타일 상태 추가
 
     // Sheet.best API URL (이전 제공 값 사용)
-    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/8e0fb9ed-0e9c-45c7-92a3-b07ad76ad2c2';
+    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/0249acce-eb5e-4c3a-9e2c-ac42c5c4d6d2';
 
     // --- choices 문자열 파싱 함수 ---
     const parseChoices = useCallback((choicesString) => {
