@@ -20,7 +20,7 @@ function hexToRgba(hexInput, opacityValue = 1.0) {
     return `rgba(${r}, ${g}, ${b}, ${numericOpacity})`;
 }
 function getPositionStyles(positionString = 'center-center') {
-    // zIndex 추가
+    // zIndex 기본값 1 유지
     const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', zIndex: 1 };
     const margin = '2rem';
     if (positionString.includes('top')) { styles.top = margin; styles.transform = 'translate(-50%, 0)'; }
@@ -79,8 +79,7 @@ function App() {
     const [error, setError] = useState(null);
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [audioContextStarted, setAudioContextStarted] = useState(false);
-    // 배경 스타일 상태 제거 -> useEffect에서 직접 적용
-    // const [backgroundStyle, setBackgroundStyle] = useState({});
+    const [backgroundStyle, setBackgroundStyle] = useState({ backgroundColor: '#333' }); // 배경 스타일 상태 다시 추가, 초기값 설정
 
     // Sheet.best API URL (이전 제공 값 사용)
     const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/0249acce-eb5e-4c3a-9e2c-ac42c5c4d6d2';
@@ -165,78 +164,68 @@ function App() {
 
     // --- 배경 및 BGM 업데이트 (currentScene 변경 시) ---
     useEffect(() => {
-        // 배경 스타일을 적용할 요소 가져오기
-        const backgroundElement = document.getElementById('game-background');
-        const bgmPlayer = document.getElementById('bgm-player');
+        const bgmPlayer = document.getElementById('bgm-player'); // bgmPlayer는 여기서 가져옴
 
-        if (currentScene && backgroundElement) {
+        if (currentScene) {
             // --- 배경 이미지 업데이트 ---
             const imageUrl = currentScene.backgroundImage;
             console.log("[Debug] Updating background. Path from data:", imageUrl);
             if (imageUrl) {
                 const correctedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
                 console.log("[Debug] Corrected image URL:", correctedImageUrl);
-                // 이미지 사전 로드 및 적용
+                // 이미지 사전 로드 및 상태 업데이트
                 const img = new Image();
                 img.onload = () => {
                     console.log("[Debug] Background image preloaded successfully:", correctedImageUrl);
-                    // 상태 대신 직접 스타일 적용
-                    backgroundElement.style.backgroundImage = `url(${correctedImageUrl})`;
-                    backgroundElement.style.backgroundSize = 'cover';
-                    backgroundElement.style.backgroundPosition = 'center';
-                    backgroundElement.style.backgroundRepeat = 'no-repeat';
-                    backgroundElement.style.transition = 'background-image 0.8s ease-in-out'; // 전환 효과
-                    backgroundElement.style.backgroundColor = ''; // 배경색 제거
+                    setBackgroundStyle({ // 상태 업데이트 방식으로 변경
+                        backgroundImage: `url(${correctedImageUrl})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        transition: 'background-image 0.8s ease-in-out'
+                    });
                 }
                 img.onerror = () => {
                     console.error("[Debug] Failed to preload background image:", correctedImageUrl);
-                    backgroundElement.style.backgroundImage = 'none';
-                    backgroundElement.style.backgroundColor = '#333'; // 로드 실패 시 기본 배경색
+                    setBackgroundStyle({ backgroundColor: '#333' }); // 로드 실패 시 기본 배경색
                 }
                 img.src = correctedImageUrl;
             } else {
                 console.log("[Debug] No background image specified.");
-                backgroundElement.style.backgroundImage = 'none';
-                backgroundElement.style.backgroundColor = '#333'; // 이미지 없을 때 기본 배경색
+                setBackgroundStyle({ backgroundColor: '#333' }); // 이미지 없을 때 기본 배경색
             }
-        } else if (!currentScene) {
-             console.log("[Debug] currentScene is null, skipping background update.");
-        } else if (!backgroundElement) {
-             console.error("[Debug] #game-background element not found!");
+
+            // --- BGM 업데이트 ---
+            if (bgmPlayer) {
+                const musicSrc = currentScene.backgroundMusic;
+                console.log("[Debug] Updating BGM. Path from data:", musicSrc);
+                const currentSrc = bgmPlayer.getAttribute('src');
+                const correctedMusicSrc = musicSrc && !musicSrc.startsWith('/') && !musicSrc.startsWith('http')
+                                        ? `/${musicSrc}`
+                                        : musicSrc;
+                console.log("[Debug] Corrected music URL:", correctedMusicSrc);
+
+                if (correctedMusicSrc && correctedMusicSrc !== currentSrc) {
+                    console.log("[Debug] Setting new BGM src:", correctedMusicSrc);
+                    bgmPlayer.src = correctedMusicSrc;
+                    bgmPlayer.load();
+                    console.log("[Debug] BGM source set.");
+                    if (audioContextStarted) {
+                         console.log("[Debug] Audio context started, attempting play...");
+                         bgmPlayer.play().catch(e => console.warn("[Debug] BGM play prevented:", e));
+                    } else { console.log("[Debug] Audio context not started, BGM won't autoplay."); }
+                } else if (!correctedMusicSrc && currentSrc) {
+                    console.log("[Debug] Pausing BGM and removing src.");
+                    bgmPlayer.pause(); bgmPlayer.currentTime = 0; bgmPlayer.removeAttribute('src');
+                } else if (correctedMusicSrc && correctedMusicSrc === currentSrc) {
+                    console.log("[Debug] BGM src is the same.");
+                     if (audioContextStarted && bgmPlayer.paused) {
+                          console.log("[Debug] Attempting to replay BGM...");
+                          bgmPlayer.play().catch(e => console.warn("[Debug] BGM replay prevented:", e));
+                     }
+                } else { console.log("[Debug] No BGM specified or src is null/empty."); }
+            } else { console.error("[Debug] #bgm-player element not found!"); }
         }
-
-
-        // --- BGM 업데이트 ---
-        if (currentScene && bgmPlayer) {
-            const musicSrc = currentScene.backgroundMusic;
-            console.log("[Debug] Updating BGM. Path from data:", musicSrc);
-            const currentSrc = bgmPlayer.getAttribute('src');
-            const correctedMusicSrc = musicSrc && !musicSrc.startsWith('/') && !musicSrc.startsWith('http')
-                                    ? `/${musicSrc}`
-                                    : musicSrc;
-            console.log("[Debug] Corrected music URL:", correctedMusicSrc);
-
-            if (correctedMusicSrc && correctedMusicSrc !== currentSrc) {
-                console.log("[Debug] Setting new BGM src:", correctedMusicSrc);
-                bgmPlayer.src = correctedMusicSrc;
-                bgmPlayer.load();
-                console.log("[Debug] BGM source set.");
-                if (audioContextStarted) {
-                     console.log("[Debug] Audio context started, attempting play...");
-                     bgmPlayer.play().catch(e => console.warn("[Debug] BGM play prevented:", e));
-                } else { console.log("[Debug] Audio context not started, BGM won't autoplay."); }
-            } else if (!correctedMusicSrc && currentSrc) {
-                console.log("[Debug] Pausing BGM and removing src.");
-                bgmPlayer.pause(); bgmPlayer.currentTime = 0; bgmPlayer.removeAttribute('src');
-            } else if (correctedMusicSrc && correctedMusicSrc === currentSrc) {
-                console.log("[Debug] BGM src is the same.");
-                 if (audioContextStarted && bgmPlayer.paused) {
-                      console.log("[Debug] Attempting to replay BGM...");
-                      bgmPlayer.play().catch(e => console.warn("[Debug] BGM replay prevented:", e));
-                 }
-            } else { console.log("[Debug] No BGM specified or src is null/empty."); }
-        } else if (!bgmPlayer) { console.error("[Debug] #bgm-player element not found!"); }
-
     }, [currentScene, audioContextStarted]); // audioContextStarted 의존성 유지
 
     // --- 첫 사용자 인터랙션 시 오디오 컨텍스트 시작 ---
@@ -246,6 +235,7 @@ function App() {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (AudioContext) {
             try {
+                // AudioContext는 한 번만 생성하는 것이 좋음
                 const audioCtx = new AudioContext();
                 if (audioCtx.state === 'suspended') {
                     audioCtx.resume().then(() => {
@@ -310,9 +300,9 @@ function App() {
         <div id="game-container" className="min-h-screen bg-gray-900 relative overflow-hidden" onClick={handleUserInteraction}>
             {/* 배경 전용 div 추가 */}
             <div
-                id="game-background" // ID 변경 (game-body -> game-background)
+                id="game-background" // ID 유지
                 className="absolute inset-0 w-full h-full -z-10" // 화면 전체 채우고 뒤로 보내기
-                // style={backgroundStyle} // 상태 대신 useEffect에서 직접 설정
+                style={backgroundStyle} // 상태에서 배경 스타일 적용
             ></div>
 
             {/* 질문 영역 */}
