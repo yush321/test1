@@ -2,26 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 // !!!! './index.css' import 라인 제거됨 !!!!
 // CSS import는 이제 src/main.jsx 에서 처리합니다.
 
-// --- Helper 함수: Hex 색상 및 투명도 -> RGBA 변환 ---
+// --- Helper 함수들 (hexToRgba, getPositionStyles, getTextAlignClass, getChoicesAlignmentClass) ---
+// (이전 코드와 동일)
 function hexToRgba(hexInput, opacityValue = 1.0) {
     let hex = String(hexInput || '').trim();
     if (!hex.startsWith('#') && /^[0-9A-Fa-f]{6}$/.test(hex)) { hex = '#' + hex; }
     else if (!hex.startsWith('#') && /^[0-9A-Fa-f]{3}$/.test(hex)) { hex = '#' + hex; }
-
-    // opacityValue가 Tailwind 클래스 형태인지 확인 ('bg-opacity-XX')
     const opacityMatch = String(opacityValue).match(/bg-opacity-(\d+)$/);
-    let numericOpacity = 1.0; // 기본값 불투명
-    if (opacityMatch) {
-        numericOpacity = parseInt(opacityMatch[1], 10) / 100;
-    } else {
-        // 숫자로 변환 시도
-        const parsedFloat = parseFloat(opacityValue);
-        if (!isNaN(parsedFloat)) {
-            numericOpacity = Math.max(0, Math.min(1, parsedFloat)); // 0과 1 사이로 제한
-        }
-    }
-
-
+    let numericOpacity = 1.0;
+    if (opacityMatch) { numericOpacity = parseInt(opacityMatch[1], 10) / 100; }
+    else { const parsedFloat = parseFloat(opacityValue); if (!isNaN(parsedFloat)) { numericOpacity = Math.max(0, Math.min(1, parsedFloat)); } }
     let r = 0, g = 0, b = 0;
     if (hex.length === 4) { r = parseInt(hex[1] + hex[1], 16); g = parseInt(hex[2] + hex[2], 16); b = parseInt(hex[3] + hex[3], 16); }
     else if (hex.length === 7) { r = parseInt(hex[1] + hex[2], 16); g = parseInt(hex[3] + hex[4], 16); b = parseInt(hex[5] + hex[6], 16); }
@@ -29,19 +19,14 @@ function hexToRgba(hexInput, opacityValue = 1.0) {
     if (isNaN(r) || isNaN(g) || isNaN(b)) { console.warn(`Parse failed: ${hexInput}`); return `rgba(0, 0, 0, ${numericOpacity})`; }
     return `rgba(${r}, ${g}, ${b}, ${numericOpacity})`;
 }
-
-// --- Helper 함수: 위치 문자열 -> Absolute Positioning 스타일 변환 ---
 function getPositionStyles(positionString = 'center-center') {
-    // position: 'absolute' 를 포함하여 스타일 객체 반환
-    const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto' };
-    const margin = '2rem'; // 화면 가장자리 여백
-
+    // zIndex 추가
+    const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', zIndex: 1 };
+    const margin = '2rem';
     if (positionString.includes('top')) { styles.top = margin; styles.transform = 'translate(-50%, 0)'; }
     if (positionString.includes('bottom')) { styles.top = 'auto'; styles.bottom = margin; styles.transform = 'translate(-50%, 0)';}
     if (positionString.includes('left')) { styles.left = margin; styles.transform = styles.transform.replace('-50%', '0'); }
     if (positionString.includes('right')) { styles.left = 'auto'; styles.right = margin; styles.transform = styles.transform.replace('-50%', '0'); }
-
-    // 중앙 및 모서리 정렬 재조정
     if (positionString === 'top-center') { styles.transform = 'translate(-50%, 0)'; }
     if (positionString === 'bottom-center') { styles.transform = 'translate(-50%, 0)'; }
     if (positionString === 'center-left') { styles.transform = 'translate(0, -50%)'; }
@@ -51,128 +36,51 @@ function getPositionStyles(positionString = 'center-center') {
     if (positionString === 'top-right') { styles.transform = 'translate(0, 0)'; }
     if (positionString === 'bottom-left') { styles.transform = 'translate(0, 0)'; }
     if (positionString === 'bottom-right') { styles.transform = 'translate(0, 0)'; }
-
     return styles;
 }
-
-// --- Helper 함수: 텍스트 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getTextAlignClass(alignString = 'center') {
      switch (alignString) { case 'left': return 'text-left'; case 'right': return 'text-right'; case 'center': default: return 'text-center'; }
 }
-
-// --- Helper 함수: 버튼 그룹 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getChoicesAlignmentClass(alignmentString) {
     switch (alignmentString) { case 'left': return 'items-start'; case 'right': return 'items-end'; case 'center': default: return 'items-center'; }
 }
 
-// --- 컴포넌트 정의 ---
 
-// 질문 컴포넌트
+// --- 컴포넌트 정의 (Question, ChoiceButton, Choices) ---
 function Question({ text, color, fontSize, textAlign, containerStyles }) {
-    const textStyle = {
-        color: hexToRgba(color || '#FFFFFF'),
-    };
-    // containerStyles는 Tailwind 클래스 문자열이어야 함
+    const textStyle = { color: hexToRgba(color || '#FFFFFF'), };
     const containerClass = ` ${containerStyles || ''}`;
     const textClass = `leading-relaxed whitespace-pre-line max-w-prose ${fontSize || 'text-xl'} ${getTextAlignClass(textAlign)}`;
-
-    return (
-        <div className={containerClass}>
-            <p className={textClass} style={textStyle}>
-                {text}
-            </p>
-        </div>
-    );
+    return ( <div className={containerClass}> <p className={textClass} style={textStyle}> {text} </p> </div> );
 }
-
-// 답변 버튼 컴포넌트
 function ChoiceButton({ choice, sceneData, onChoiceClick }) {
-    const {
-        buttonFontSize = 'text-base',
-        buttonTextColor = '#374151',
-        buttonBgColor = '#FFFFFF',
-        buttonBgOpacity = '1',
-        buttonHoverTextColor = buttonTextColor,
-        buttonHoverBgColor = buttonBgColor,
-    } = sceneData;
-
-    // 투명도 값 계산 (Tailwind 클래스 또는 숫자)
-    const opacityValue = String(buttonBgOpacity).includes('bg-opacity-')
-        ? parseInt(String(buttonBgOpacity).split('-').pop() || '100', 10) / 100
-        : parseFloat(buttonBgOpacity) || 1.0;
-
-    // 기본 스타일과 호버 스타일 정의
-    const normalStyle = {
-        color: hexToRgba(buttonTextColor),
-        backgroundColor: hexToRgba(buttonBgColor, opacityValue),
-    };
-    const hoverStyle = {
-        color: hexToRgba(buttonHoverTextColor),
-        backgroundColor: hexToRgba(buttonHoverBgColor, opacityValue),
-    };
-
-    // 버튼 호버 상태 관리
+    const { buttonFontSize = 'text-base', buttonTextColor = '#374151', buttonBgColor = '#FFFFFF', buttonBgOpacity = '1', buttonHoverTextColor = buttonTextColor, buttonHoverBgColor = buttonBgColor, } = sceneData;
+    const opacityValue = String(buttonBgOpacity).includes('bg-opacity-') ? parseInt(String(buttonBgOpacity).split('-').pop() || '100', 10) / 100 : parseFloat(buttonBgOpacity) || 1.0;
+    const normalStyle = { color: hexToRgba(buttonTextColor), backgroundColor: hexToRgba(buttonBgColor, opacityValue), };
+    const hoverStyle = { color: hexToRgba(buttonHoverTextColor), backgroundColor: hexToRgba(buttonHoverBgColor, opacityValue), };
     const [currentStyle, setCurrentStyle] = useState(normalStyle);
-
-    // sceneData 변경 시 스타일 초기화
-    useEffect(() => {
-        setCurrentStyle({
-            color: hexToRgba(buttonTextColor),
-            backgroundColor: hexToRgba(buttonBgColor, opacityValue),
-        });
-    }, [sceneData, buttonTextColor, buttonBgColor, buttonBgOpacity, opacityValue]);
-
-    return (
-        <button
-            className={`choice-button ${buttonFontSize}`} // 기본 스타일 적용
-            style={currentStyle} // 동적 스타일 적용
-            onClick={() => onChoiceClick(choice.nextSceneId)}
-            onMouseOver={() => setCurrentStyle(hoverStyle)}
-            onMouseOut={() => setCurrentStyle(normalStyle)}
-        >
-            {choice.text}
-        </button>
-    );
+    useEffect(() => { setCurrentStyle({ color: hexToRgba(buttonTextColor), backgroundColor: hexToRgba(buttonBgColor, opacityValue), }); }, [sceneData, buttonTextColor, buttonBgColor, buttonBgOpacity, opacityValue]);
+    return ( <button className={`choice-button ${buttonFontSize}`} style={currentStyle} onClick={() => onChoiceClick(choice.nextSceneId)} onMouseOver={() => setCurrentStyle(hoverStyle)} onMouseOut={() => setCurrentStyle(normalStyle)} > {choice.text} </button> );
 }
-
-// 답변 목록 컴포넌트
 function Choices({ choices, sceneData, onChoiceClick, alignment, containerStyles }) {
     const containerClass = ` ${containerStyles || ''}`;
     const choicesListClass = `flex flex-col space-y-4 ${getChoicesAlignmentClass(alignment)}`;
-    const { currentSceneId } = sceneData; // App에서 전달된 sceneData 사용
-
-    return (
-        <div className={containerClass}>
-            <div className={choicesListClass}>
-                {/* choices 배열 유효성 검사 강화 */}
-                {Array.isArray(choices) && choices.length > 0 ? (
-                    choices.map((choice, index) => (
-                        <ChoiceButton
-                            key={`${currentSceneId}-${index}`} // key 안정성 개선
-                            choice={choice}
-                            sceneData={sceneData}
-                            onChoiceClick={onChoiceClick}
-                        />
-                    ))
-                ) : (
-                    <p className="text-gray-400 italic">선택지가 없습니다.</p> // 선택지 없을 때 메시지
-                )}
-            </div>
-        </div>
-    );
+    const { currentSceneId } = sceneData;
+    return ( <div className={containerClass}> <div className={choicesListClass}> {Array.isArray(choices) && choices.length > 0 ? ( choices.map((choice, index) => ( <ChoiceButton key={`${currentSceneId}-${index}`} choice={choice} sceneData={sceneData} onChoiceClick={onChoiceClick} /> )) ) : ( <p className="text-gray-400 italic">선택지가 없습니다.</p> )} </div> </div> );
 }
 
 
 // 메인 앱 컴포넌트
 function App() {
     const [storyData, setStoryData] = useState([]);
-    const [currentSceneId, setCurrentSceneId] = useState(1); // 초기 sceneId는 1로 시작
+    const [currentSceneId, setCurrentSceneId] = useState(1);
     const [currentScene, setCurrentScene] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isTransitioning, setIsTransitioning] = useState(false);
-    const [audioContextStarted, setAudioContextStarted] = useState(false); // 오디오 컨텍스트 시작 여부 상태
-    const [backgroundStyle, setBackgroundStyle] = useState({}); // 배경 스타일 상태 추가
+    const [audioContextStarted, setAudioContextStarted] = useState(false);
+    // 배경 스타일 상태 제거 -> useEffect에서 직접 적용
+    // const [backgroundStyle, setBackgroundStyle] = useState({});
 
     // Sheet.best API URL (이전 제공 값 사용)
     const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/0249acce-eb5e-4c3a-9e2c-ac42c5c4d6d2';
@@ -257,76 +165,79 @@ function App() {
 
     // --- 배경 및 BGM 업데이트 (currentScene 변경 시) ---
     useEffect(() => {
-        if (currentScene) {
+        // 배경 스타일을 적용할 요소 가져오기
+        const backgroundElement = document.getElementById('game-background');
+        const bgmPlayer = document.getElementById('bgm-player');
+
+        if (currentScene && backgroundElement) {
             // --- 배경 이미지 업데이트 ---
             const imageUrl = currentScene.backgroundImage;
             console.log("[Debug] Updating background. Path from data:", imageUrl);
             if (imageUrl) {
                 const correctedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
                 console.log("[Debug] Corrected image URL:", correctedImageUrl);
-                // 이미지 사전 로드 시도
+                // 이미지 사전 로드 및 적용
                 const img = new Image();
                 img.onload = () => {
                     console.log("[Debug] Background image preloaded successfully:", correctedImageUrl);
-                    setBackgroundStyle({
-                        backgroundImage: `url(${correctedImageUrl})`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        transition: 'background-image 0.8s ease-in-out' // 상태 변경 시 전환 적용
-                    });
+                    // 상태 대신 직접 스타일 적용
+                    backgroundElement.style.backgroundImage = `url(${correctedImageUrl})`;
+                    backgroundElement.style.backgroundSize = 'cover';
+                    backgroundElement.style.backgroundPosition = 'center';
+                    backgroundElement.style.backgroundRepeat = 'no-repeat';
+                    backgroundElement.style.transition = 'background-image 0.8s ease-in-out'; // 전환 효과
+                    backgroundElement.style.backgroundColor = ''; // 배경색 제거
                 }
                 img.onerror = () => {
                     console.error("[Debug] Failed to preload background image:", correctedImageUrl);
-                    setBackgroundStyle({ backgroundColor: '#333' }); // 로드 실패 시 기본 배경색
+                    backgroundElement.style.backgroundImage = 'none';
+                    backgroundElement.style.backgroundColor = '#333'; // 로드 실패 시 기본 배경색
                 }
                 img.src = correctedImageUrl;
             } else {
                 console.log("[Debug] No background image specified.");
-                setBackgroundStyle({ backgroundColor: '#333' }); // 이미지 없을 때 기본 배경색
+                backgroundElement.style.backgroundImage = 'none';
+                backgroundElement.style.backgroundColor = '#333'; // 이미지 없을 때 기본 배경색
             }
-
-            // --- BGM 업데이트 ---
-            const bgmPlayer = document.getElementById('bgm-player');
-            if (bgmPlayer) {
-                const musicSrc = currentScene.backgroundMusic;
-                console.log("[Debug] Updating BGM. Path from data:", musicSrc);
-                const currentSrc = bgmPlayer.getAttribute('src');
-                const correctedMusicSrc = musicSrc && !musicSrc.startsWith('/') && !musicSrc.startsWith('http')
-                                        ? `/${musicSrc}`
-                                        : musicSrc;
-                console.log("[Debug] Corrected music URL:", correctedMusicSrc);
-
-                if (correctedMusicSrc && correctedMusicSrc !== currentSrc) {
-                    console.log("[Debug] Setting new BGM src:", correctedMusicSrc);
-                    bgmPlayer.src = correctedMusicSrc;
-                    bgmPlayer.load(); // 중요: src 변경 후 로드 필요
-                    console.log("[Debug] BGM source set. Autoplay depends on user interaction and browser policy.");
-                    // 자동 재생 시도 (사용자 인터랙션 후 가능성 높음)
-                    if (audioContextStarted) {
-                         console.log("[Debug] Audio context started, attempting to play BGM...");
-                         const playPromise = bgmPlayer.play();
-                         if (playPromise !== undefined) {
-                             playPromise.then(_ => { console.log("[Debug] BGM playback started successfully via promise."); })
-                                        .catch(error => { console.warn("[Debug] BGM auto-play prevented:", error); });
-                         }
-                    } else {
-                        console.log("[Debug] Audio context not started yet. BGM won't autoplay.");
-                    }
-                } else if (!correctedMusicSrc && currentSrc) {
-                    console.log("[Debug] Pausing BGM and removing src.");
-                    bgmPlayer.pause(); bgmPlayer.currentTime = 0; bgmPlayer.removeAttribute('src');
-                } else if (correctedMusicSrc && correctedMusicSrc === currentSrc) {
-                    console.log("[Debug] BGM src is the same. Attempting replay if paused.");
-                     if (audioContextStarted && bgmPlayer.paused) {
-                          bgmPlayer.play().catch(e => console.warn("[Debug] BGM replay prevented:", e));
-                     }
-                } else {
-                     console.log("[Debug] No BGM specified or src is null/empty.");
-                }
-            } else { console.error("[Debug] #bgm-player element not found!"); }
+        } else if (!currentScene) {
+             console.log("[Debug] currentScene is null, skipping background update.");
+        } else if (!backgroundElement) {
+             console.error("[Debug] #game-background element not found!");
         }
-    }, [currentScene, audioContextStarted]); // audioContextStarted 의존성 추가
+
+
+        // --- BGM 업데이트 ---
+        if (currentScene && bgmPlayer) {
+            const musicSrc = currentScene.backgroundMusic;
+            console.log("[Debug] Updating BGM. Path from data:", musicSrc);
+            const currentSrc = bgmPlayer.getAttribute('src');
+            const correctedMusicSrc = musicSrc && !musicSrc.startsWith('/') && !musicSrc.startsWith('http')
+                                    ? `/${musicSrc}`
+                                    : musicSrc;
+            console.log("[Debug] Corrected music URL:", correctedMusicSrc);
+
+            if (correctedMusicSrc && correctedMusicSrc !== currentSrc) {
+                console.log("[Debug] Setting new BGM src:", correctedMusicSrc);
+                bgmPlayer.src = correctedMusicSrc;
+                bgmPlayer.load();
+                console.log("[Debug] BGM source set.");
+                if (audioContextStarted) {
+                     console.log("[Debug] Audio context started, attempting play...");
+                     bgmPlayer.play().catch(e => console.warn("[Debug] BGM play prevented:", e));
+                } else { console.log("[Debug] Audio context not started, BGM won't autoplay."); }
+            } else if (!correctedMusicSrc && currentSrc) {
+                console.log("[Debug] Pausing BGM and removing src.");
+                bgmPlayer.pause(); bgmPlayer.currentTime = 0; bgmPlayer.removeAttribute('src');
+            } else if (correctedMusicSrc && correctedMusicSrc === currentSrc) {
+                console.log("[Debug] BGM src is the same.");
+                 if (audioContextStarted && bgmPlayer.paused) {
+                      console.log("[Debug] Attempting to replay BGM...");
+                      bgmPlayer.play().catch(e => console.warn("[Debug] BGM replay prevented:", e));
+                 }
+            } else { console.log("[Debug] No BGM specified or src is null/empty."); }
+        } else if (!bgmPlayer) { console.error("[Debug] #bgm-player element not found!"); }
+
+    }, [currentScene, audioContextStarted]); // audioContextStarted 의존성 유지
 
     // --- 첫 사용자 인터랙션 시 오디오 컨텍스트 시작 ---
     const handleUserInteraction = useCallback(() => {
@@ -335,8 +246,6 @@ function App() {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (AudioContext) {
             try {
-                // AudioContext는 한 번만 생성하는 것이 좋음 (앱 로드 시)
-                // 여기서는 간단하게 매번 생성 시도
                 const audioCtx = new AudioContext();
                 if (audioCtx.state === 'suspended') {
                     audioCtx.resume().then(() => {
@@ -357,11 +266,11 @@ function App() {
                 }
             } catch (e) {
                  console.error("[Error] Creating AudioContext failed:", e);
-                 setAudioContextStarted(true); // 컨텍스트 생성 실패해도 일단 상태는 true로
+                 setAudioContextStarted(true);
             }
         } else {
             console.warn("AudioContext is not supported.");
-            setAudioContextStarted(true); // 지원 안해도 상태는 true로
+            setAudioContextStarted(true);
              const bgmPlayer = document.getElementById('bgm-player');
              if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
                  bgmPlayer.play().catch(e => console.warn("[Debug] BGM play (no AudioContext) failed:", e));
@@ -372,7 +281,7 @@ function App() {
 
     // --- 답변 선택 처리 (오디오 컨텍스트 시작 로직 추가) ---
     const handleChoiceClick = useCallback((nextSceneId) => {
-        if (!audioContextStarted) { handleUserInteraction(); } // 첫 클릭 시 오디오 컨텍스트 시작
+        if (!audioContextStarted) { handleUserInteraction(); }
 
         if (nextSceneId === null || nextSceneId === undefined) { console.error("Invalid nextSceneId:", nextSceneId); return; }
         if (!storyData.some(scene => scene.sceneId === nextSceneId)) { console.error(`Next scene ID ${nextSceneId} does not exist.`); setError(`오류: 다음 장면(ID: ${nextSceneId}) 없음.`); return; }
@@ -401,9 +310,9 @@ function App() {
         <div id="game-container" className="min-h-screen bg-gray-900 relative overflow-hidden" onClick={handleUserInteraction}>
             {/* 배경 전용 div 추가 */}
             <div
-                id="game-body"
+                id="game-background" // ID 변경 (game-body -> game-background)
                 className="absolute inset-0 w-full h-full -z-10" // 화면 전체 채우고 뒤로 보내기
-                style={backgroundStyle} // 상태에서 배경 스타일 적용
+                // style={backgroundStyle} // 상태 대신 useEffect에서 직접 설정
             ></div>
 
             {/* 질문 영역 */}
