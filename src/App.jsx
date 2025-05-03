@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 // CSS import는 이제 src/main.jsx 에서 처리합니다.
 
 // --- Helper 함수들 (hexToRgba, getPositionStyles, getTextAlignClass, getChoicesAlignmentClass) ---
-// (이전 코드와 동일)
 function hexToRgba(hexInput, opacityValue = 1.0) {
     let hex = String(hexInput || '').trim();
     if (!hex.startsWith('#') && /^[0-9A-Fa-f]{6}$/.test(hex)) { hex = '#' + hex; }
@@ -20,8 +19,8 @@ function hexToRgba(hexInput, opacityValue = 1.0) {
     return `rgba(${r}, ${g}, ${b}, ${numericOpacity})`;
 }
 function getPositionStyles(positionString = 'center-center') {
-    // zIndex 기본값 1 유지
-    const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', zIndex: 1 };
+    // zIndex를 10으로 설정하여 배경보다 확실히 위에 오도록 함
+    const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', zIndex: 10 };
     const margin = '2rem';
     if (positionString.includes('top')) { styles.top = margin; styles.transform = 'translate(-50%, 0)'; }
     if (positionString.includes('bottom')) { styles.top = 'auto'; styles.bottom = margin; styles.transform = 'translate(-50%, 0)';}
@@ -79,7 +78,7 @@ function App() {
     const [error, setError] = useState(null);
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [audioContextStarted, setAudioContextStarted] = useState(false);
-    const [backgroundStyle, setBackgroundStyle] = useState({ backgroundColor: '#333' }); // 배경 스타일 상태 다시 추가, 초기값 설정
+    const [backgroundStyle, setBackgroundStyle] = useState({ backgroundColor: '#333' });
 
     // Sheet.best API URL (이전 제공 값 사용)
     const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/0d608cb8-2511-4ebe-b962-ee74ec2cf588';
@@ -164,7 +163,7 @@ function App() {
 
     // --- 배경 및 BGM 업데이트 (currentScene 변경 시) ---
     useEffect(() => {
-        const bgmPlayer = document.getElementById('bgm-player'); // bgmPlayer는 여기서 가져옴
+        const bgmPlayer = document.getElementById('bgm-player');
 
         if (currentScene) {
             // --- 배경 이미지 업데이트 ---
@@ -173,11 +172,10 @@ function App() {
             if (imageUrl) {
                 const correctedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
                 console.log("[Debug] Corrected image URL:", correctedImageUrl);
-                // 이미지 사전 로드 및 상태 업데이트
                 const img = new Image();
                 img.onload = () => {
                     console.log("[Debug] Background image preloaded successfully:", correctedImageUrl);
-                    setBackgroundStyle({ // 상태 업데이트 방식으로 변경
+                    setBackgroundStyle({
                         backgroundImage: `url(${correctedImageUrl})`,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
@@ -187,12 +185,12 @@ function App() {
                 }
                 img.onerror = () => {
                     console.error("[Debug] Failed to preload background image:", correctedImageUrl);
-                    setBackgroundStyle({ backgroundColor: '#333' }); // 로드 실패 시 기본 배경색
+                    setBackgroundStyle({ backgroundColor: '#333' });
                 }
                 img.src = correctedImageUrl;
             } else {
                 console.log("[Debug] No background image specified.");
-                setBackgroundStyle({ backgroundColor: '#333' }); // 이미지 없을 때 기본 배경색
+                setBackgroundStyle({ backgroundColor: '#333' });
             }
 
             // --- BGM 업데이트 ---
@@ -226,45 +224,39 @@ function App() {
                 } else { console.log("[Debug] No BGM specified or src is null/empty."); }
             } else { console.error("[Debug] #bgm-player element not found!"); }
         }
-    }, [currentScene, audioContextStarted]); // audioContextStarted 의존성 유지
+    }, [currentScene, audioContextStarted]);
 
     // --- 첫 사용자 인터랙션 시 오디오 컨텍스트 시작 ---
     const handleUserInteraction = useCallback(() => {
         if (audioContextStarted) { console.log("[Debug] Audio context already started."); return; }
         console.log("[Debug] User interaction detected, attempting to start audio context...");
         const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const bgmPlayer = document.getElementById('bgm-player');
+
+        const startAudio = () => {
+             if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
+                  console.log("[Debug] Attempting BGM play after interaction/context resume...");
+                  bgmPlayer.play().catch(e => console.warn("[Debug] BGM play failed:", e));
+             }
+             setAudioContextStarted(true);
+        }
+
         if (AudioContext) {
             try {
-                // AudioContext는 한 번만 생성하는 것이 좋음
                 const audioCtx = new AudioContext();
                 if (audioCtx.state === 'suspended') {
                     audioCtx.resume().then(() => {
                         console.log("[Debug] AudioContext resumed successfully.");
-                        setAudioContextStarted(true);
-                        const bgmPlayer = document.getElementById('bgm-player');
-                        if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
-                             bgmPlayer.play().catch(e => console.warn("[Debug] BGM play after context resume failed:", e));
-                        }
-                    }).catch(e => console.error("[Debug] Failed to resume AudioContext:", e));
+                        startAudio();
+                    }).catch(e => { console.error("[Debug] Failed to resume AudioContext:", e); setAudioContextStarted(true); });
                 } else {
                     console.log("[Debug] AudioContext state:", audioCtx.state);
-                    setAudioContextStarted(true);
-                    const bgmPlayer = document.getElementById('bgm-player');
-                    if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
-                         bgmPlayer.play().catch(e => console.warn("[Debug] BGM play (context already running) failed:", e));
-                    }
+                    startAudio();
                 }
-            } catch (e) {
-                 console.error("[Error] Creating AudioContext failed:", e);
-                 setAudioContextStarted(true);
-            }
+            } catch (e) { console.error("[Error] Creating/Resuming AudioContext failed:", e); setAudioContextStarted(true); startAudio(); }
         } else {
             console.warn("AudioContext is not supported.");
-            setAudioContextStarted(true);
-             const bgmPlayer = document.getElementById('bgm-player');
-             if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
-                 bgmPlayer.play().catch(e => console.warn("[Debug] BGM play (no AudioContext) failed:", e));
-             }
+            startAudio();
         }
     }, [audioContextStarted]);
 
@@ -298,22 +290,26 @@ function App() {
     return (
         // 최상위 div에 클릭 이벤트 리스너 추가
         <div id="game-container" className="min-h-screen bg-gray-900 relative overflow-hidden" onClick={handleUserInteraction}>
-            {/* 배경 전용 div 추가 */}
+            {/* 배경 전용 div */}
             <div
-                id="game-background" // ID 유지
-                className="absolute inset-0 w-full h-full -z-10" // 화면 전체 채우고 뒤로 보내기
+                id="game-background"
+                // z-index 클래스 제거 (기본값 auto), className으로 스타일 일부 이동
+                className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
                 style={backgroundStyle} // 상태에서 배경 스타일 적용
             ></div>
 
             {/* 질문 영역 */}
+            {/* z-index: 10 스타일 객체에서 적용 */}
             <div id="question-container" style={{ ...questionPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses}`}>
                 {currentScene && ( <Question text={currentScene.question} color={currentScene.questionColor} fontSize={currentScene.questionFontSize} textAlign={currentScene.questionTextAlign} containerStyles={currentScene.questionContainerStyles} /> )}
             </div>
             {/* 답변 영역 */}
+             {/* z-index: 10 스타일 객체에서 적용 */}
             <div id="choices-container" style={{ ...choicesPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-100`}>
                 {currentScene && ( <Choices choices={currentScene.choices || []} sceneData={{...currentScene, currentSceneId}} onChoiceClick={handleChoiceClick} alignment={currentScene.choicesAlignment} containerStyles={currentScene.choicesContainerStyles} /> )}
             </div>
-             <audio id="bgm-player" loop></audio>
+             {/* 오디오 태그에 playsInline 추가 */}
+             <audio id="bgm-player" loop playsInline></audio>
         </div>
     );
 }
