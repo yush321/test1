@@ -171,9 +171,11 @@ function App() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isTransitioning, setIsTransitioning] = useState(false);
+    const [audioContextStarted, setAudioContextStarted] = useState(false); // 오디오 컨텍스트 시작 여부 상태
+    const [backgroundStyle, setBackgroundStyle] = useState({}); // 배경 스타일 상태 추가
 
-    // !!!! 중요 !!!! : Sheet.best API URL 업데이트됨
-    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/ef71f253-1e87-4c1c-920e-e941f3c4323a';
+    // Sheet.best API URL (이전 제공 값 사용)
+    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/8e0fb9ed-0e9c-45c7-92a3-b07ad76ad2c2';
 
     // --- choices 문자열 파싱 함수 ---
     const parseChoices = useCallback((choicesString) => {
@@ -183,16 +185,10 @@ function App() {
         try {
             const cleanedString = choicesString.replace(/[\n\r\t]/g, '').trim();
             const parsed = JSON.parse(cleanedString);
-            if (!Array.isArray(parsed)) {
-                 console.warn("Parsed choices is not an array:", parsed);
-                 return [];
-            }
+            if (!Array.isArray(parsed)) { console.warn("Parsed choices is not an array:", parsed); return []; }
             return parsed.map(choice => {
                 const nextId = parseInt(choice.nextSceneId, 10);
-                if (typeof choice.text !== 'string' || isNaN(nextId)) {
-                    console.warn("Invalid choice format found:", choice);
-                    return null;
-                }
+                if (typeof choice.text !== 'string' || isNaN(nextId)) { console.warn("Invalid choice format found:", choice); return null; }
                 return { ...choice, nextSceneId: nextId };
             }).filter(choice => choice !== null);
         } catch (e) {
@@ -205,157 +201,181 @@ function App() {
     useEffect(() => {
         const fetchData = async () => {
             if (!SHEET_BEST_URL || !SHEET_BEST_URL.startsWith('https://api.sheetbest.com/')) {
-                 setError("유효하지 않은 Sheet.best API URL입니다. URL을 확인하고 App.jsx 파일을 수정하세요.");
-                 setIsLoading(false);
-                 return;
+                 setError("유효하지 않은 Sheet.best API URL입니다."); setIsLoading(false); return;
             }
-
-            setIsLoading(true);
-            setError(null);
+            setIsLoading(true); setError(null);
             console.log("Fetching data from Sheet.best:", SHEET_BEST_URL);
             try {
                 const response = await fetch(SHEET_BEST_URL);
                 if (!response.ok) {
-                    const errorBody = await response.text();
-                    console.error("Sheet.best fetch error body:", errorBody);
-                    const statusText = response.status === 400
-                        ? `(Bad Request - Google Sheets 데이터 형식, 헤더 또는 URL을 확인하세요)`
-                        : `(status: ${response.status})`;
+                    const errorBody = await response.text(); console.error("Sheet.best fetch error body:", errorBody);
+                    const statusText = response.status === 400 ? `(Bad Request - Google Sheets 데이터 형식/헤더/URL 확인)` : `(status: ${response.status})`;
                     throw new Error(`HTTP error! ${statusText}`);
                 }
-                const data = await response.json();
-                console.log("Data fetched successfully (raw):", data);
-
-                if (!Array.isArray(data)) {
-                    console.error("Fetched data is not an array:", data);
-                    throw new Error("Sheet.best에서 반환된 데이터 형식이 올바르지 않습니다. 배열이어야 합니다.");
-                }
+                const data = await response.json(); console.log("Data fetched (raw):", data);
+                if (!Array.isArray(data)) { throw new Error("Sheet.best 응답 데이터 형식이 배열이 아닙니다."); }
 
                 let processingError = null;
                 const formattedData = data.map((row, index) => {
                     try {
                         const sceneId = parseInt(row.sceneId, 10);
-                        if (isNaN(sceneId)) {
-                            console.warn(`Invalid sceneId found at row ${index + 1}:`, row.sceneId);
-                            return null;
-                        }
-                        return {
-                            ...row,
-                            sceneId: sceneId,
-                            choices: parseChoices(row.choices),
-                        };
-                    } catch (parseError) {
-                        console.error(`Error processing row ${index + 1}:`, parseError);
-                        processingError = parseError;
-                        return null;
-                    }
+                        if (isNaN(sceneId)) { console.warn(`Invalid sceneId @ row ${index + 1}:`, row.sceneId); return null; }
+                        return { ...row, sceneId: sceneId, choices: parseChoices(row.choices), };
+                    } catch (parseError) { console.error(`Error processing row ${index + 1}:`, parseError); processingError = parseError; return null; }
                 }).filter(row => row !== null);
 
-                if (processingError) {
-                    throw processingError;
-                }
-
-                if (formattedData.length === 0 && data.length > 0) {
-                     throw new Error("데이터를 가져왔으나 유효한 장면 형식이 없습니다. Google Sheets의 sceneId 및 choices 형식을 확인하세요.");
-                }
-                if (formattedData.length === 0) {
-                     throw new Error("시나리오 데이터를 찾을 수 없습니다. Google Sheets에 데이터가 있는지 확인하세요.");
-                }
+                if (processingError) { throw processingError; }
+                if (formattedData.length === 0 && data.length > 0) { throw new Error("데이터는 가져왔으나 유효한 장면 형식이 없습니다. sceneId/choices 확인."); }
+                if (formattedData.length === 0) { throw new Error("시나리오 데이터를 찾을 수 없습니다. Google Sheets 확인."); }
 
                 formattedData.sort((a, b) => a.sceneId - b.sceneId);
                 console.log("Formatted data:", formattedData);
                 setStoryData(formattedData);
 
-                // 초기 장면 ID 설정 (데이터 설정 후)
+                // 초기 장면 ID 설정 (1번 우선)
                 const initialSceneId = 1;
-                const firstScene = formattedData.find(s => s.sceneId === initialSceneId);
-                 if (firstScene) {
-                     console.log("Initial scene ID set to:", initialSceneId);
-                     setCurrentSceneId(initialSceneId);
-                 } else {
-                     console.warn("Scene ID 1 not found, starting with the first available scene:", formattedData[0].sceneId);
-                     setCurrentSceneId(formattedData[0].sceneId);
-                 }
+                const firstScene = formattedData.find(s => s.sceneId === initialSceneId) || formattedData[0];
+                if (firstScene) {
+                    console.log("Initial scene ID:", firstScene.sceneId);
+                    setCurrentSceneId(firstScene.sceneId);
+                } else { setError("초기 장면을 설정할 수 없습니다."); }
 
-            } catch (e) {
-                console.error("Failed to fetch or process story data:", e);
-                setError(`게임 데이터 처리 중 오류 발생: ${e.message}`);
-            } finally {
-                setIsLoading(false);
-            }
+            } catch (e) { console.error("Fetch/process error:", e); setError(`데이터 처리 오류: ${e.message}`);
+            } finally { setIsLoading(false); }
         };
-
         fetchData();
-
     }, [SHEET_BEST_URL, parseChoices]);
 
     // --- 현재 장면 데이터 설정 ---
     useEffect(() => {
         if (storyData.length > 0) {
             const scene = storyData.find(s => s.sceneId === currentSceneId);
-            if (scene) {
-                setCurrentScene(scene);
-            } else {
-                console.error(`Critical Error: Scene with ID ${currentSceneId} not found after data load.`);
-                setError(`오류: 장면(ID: ${currentSceneId})을 찾을 수 없습니다.`);
-            }
+            if (scene) { setCurrentScene(scene); }
+            else { console.error(`Critical Error: Scene ID ${currentSceneId} not found.`); setError(`오류: 장면(ID: ${currentSceneId}) 없음.`); }
         }
     }, [currentSceneId, storyData]);
 
     // --- 배경 및 BGM 업데이트 (currentScene 변경 시) ---
     useEffect(() => {
         if (currentScene) {
-            const gameBody = document.getElementById('game-body');
-            if (gameBody) {
-                 if (currentScene.backgroundImage) {
-                     const imageUrl = currentScene.backgroundImage.startsWith('/')
-                                     ? currentScene.backgroundImage
-                                     : `/${currentScene.backgroundImage}`;
-                     gameBody.style.backgroundImage = `url(${imageUrl})`;
-                     gameBody.style.backgroundSize = 'cover';
-                     gameBody.style.backgroundPosition = 'center';
-                     gameBody.style.backgroundRepeat = 'no-repeat';
-                     gameBody.style.transition = 'background-image 0.8s ease-in-out';
-                 } else {
-                     gameBody.style.backgroundImage = 'none';
-                     gameBody.style.backgroundColor = '#333';
-                 }
+            // --- 배경 이미지 업데이트 ---
+            const imageUrl = currentScene.backgroundImage;
+            console.log("[Debug] Updating background. Path from data:", imageUrl);
+            if (imageUrl) {
+                const correctedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+                console.log("[Debug] Corrected image URL:", correctedImageUrl);
+                // 이미지 사전 로드 시도
+                const img = new Image();
+                img.onload = () => {
+                    console.log("[Debug] Background image preloaded successfully:", correctedImageUrl);
+                    setBackgroundStyle({
+                        backgroundImage: `url(${correctedImageUrl})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        transition: 'background-image 0.8s ease-in-out' // 상태 변경 시 전환 적용
+                    });
+                }
+                img.onerror = () => {
+                    console.error("[Debug] Failed to preload background image:", correctedImageUrl);
+                    setBackgroundStyle({ backgroundColor: '#333' }); // 로드 실패 시 기본 배경색
+                }
+                img.src = correctedImageUrl;
+            } else {
+                console.log("[Debug] No background image specified.");
+                setBackgroundStyle({ backgroundColor: '#333' }); // 이미지 없을 때 기본 배경색
             }
 
+            // --- BGM 업데이트 ---
             const bgmPlayer = document.getElementById('bgm-player');
             if (bgmPlayer) {
                 const musicSrc = currentScene.backgroundMusic;
+                console.log("[Debug] Updating BGM. Path from data:", musicSrc);
                 const currentSrc = bgmPlayer.getAttribute('src');
                 const correctedMusicSrc = musicSrc && !musicSrc.startsWith('/') && !musicSrc.startsWith('http')
                                         ? `/${musicSrc}`
                                         : musicSrc;
+                console.log("[Debug] Corrected music URL:", correctedMusicSrc);
 
                 if (correctedMusicSrc && correctedMusicSrc !== currentSrc) {
-                    console.log("Updating BGM to:", correctedMusicSrc);
+                    console.log("[Debug] Setting new BGM src:", correctedMusicSrc);
                     bgmPlayer.src = correctedMusicSrc;
-                    bgmPlayer.load();
+                    bgmPlayer.load(); // 중요: src 변경 후 로드 필요
+                    console.log("[Debug] BGM source set. Autoplay depends on user interaction and browser policy.");
+                    // 자동 재생 시도 (사용자 인터랙션 후 가능성 높음)
+                    if (audioContextStarted) {
+                         console.log("[Debug] Audio context started, attempting to play BGM...");
+                         const playPromise = bgmPlayer.play();
+                         if (playPromise !== undefined) {
+                             playPromise.then(_ => { console.log("[Debug] BGM playback started successfully via promise."); })
+                                        .catch(error => { console.warn("[Debug] BGM auto-play prevented:", error); });
+                         }
+                    } else {
+                        console.log("[Debug] Audio context not started yet. BGM won't autoplay.");
+                    }
                 } else if (!correctedMusicSrc && currentSrc) {
-                    console.log("Pausing BGM.");
-                    bgmPlayer.pause();
-                    bgmPlayer.currentTime = 0;
-                    bgmPlayer.removeAttribute('src');
+                    console.log("[Debug] Pausing BGM and removing src.");
+                    bgmPlayer.pause(); bgmPlayer.currentTime = 0; bgmPlayer.removeAttribute('src');
+                } else if (correctedMusicSrc && correctedMusicSrc === currentSrc) {
+                    console.log("[Debug] BGM src is the same. Attempting replay if paused.");
+                     if (audioContextStarted && bgmPlayer.paused) {
+                          bgmPlayer.play().catch(e => console.warn("[Debug] BGM replay prevented:", e));
+                     }
+                } else {
+                     console.log("[Debug] No BGM specified or src is null/empty.");
                 }
+            } else { console.error("[Debug] #bgm-player element not found!"); }
+        }
+    }, [currentScene, audioContextStarted]); // audioContextStarted 의존성 추가
+
+    // --- 첫 사용자 인터랙션 시 오디오 컨텍스트 시작 ---
+    const handleUserInteraction = useCallback(() => {
+        if (audioContextStarted) { console.log("[Debug] Audio context already started."); return; }
+        console.log("[Debug] User interaction detected, attempting to start audio context...");
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+            try {
+                // AudioContext는 한 번만 생성하는 것이 좋음 (앱 로드 시)
+                // 여기서는 간단하게 매번 생성 시도
+                const audioCtx = new AudioContext();
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume().then(() => {
+                        console.log("[Debug] AudioContext resumed successfully.");
+                        setAudioContextStarted(true);
+                        const bgmPlayer = document.getElementById('bgm-player');
+                        if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
+                             bgmPlayer.play().catch(e => console.warn("[Debug] BGM play after context resume failed:", e));
+                        }
+                    }).catch(e => console.error("[Debug] Failed to resume AudioContext:", e));
+                } else {
+                    console.log("[Debug] AudioContext state:", audioCtx.state);
+                    setAudioContextStarted(true);
+                    const bgmPlayer = document.getElementById('bgm-player');
+                    if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
+                         bgmPlayer.play().catch(e => console.warn("[Debug] BGM play (context already running) failed:", e));
+                    }
+                }
+            } catch (e) {
+                 console.error("[Error] Creating AudioContext failed:", e);
+                 setAudioContextStarted(true); // 컨텍스트 생성 실패해도 일단 상태는 true로
             }
+        } else {
+            console.warn("AudioContext is not supported.");
+            setAudioContextStarted(true); // 지원 안해도 상태는 true로
+             const bgmPlayer = document.getElementById('bgm-player');
+             if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
+                 bgmPlayer.play().catch(e => console.warn("[Debug] BGM play (no AudioContext) failed:", e));
+             }
         }
-    }, [currentScene]);
+    }, [audioContextStarted]);
 
 
-    // --- 답변 선택 처리 ---
+    // --- 답변 선택 처리 (오디오 컨텍스트 시작 로직 추가) ---
     const handleChoiceClick = useCallback((nextSceneId) => {
-        if (nextSceneId === null || nextSceneId === undefined) {
-            console.error("Invalid nextSceneId:", nextSceneId);
-            return;
-        }
-        if (!storyData.some(scene => scene.sceneId === nextSceneId)) {
-            console.error(`Next scene ID ${nextSceneId} does not exist.`);
-            setError(`오류: 다음 장면(ID: ${nextSceneId})을 찾을 수 없습니다. Google Sheets 데이터를 확인하세요.`);
-            return;
-        }
+        if (!audioContextStarted) { handleUserInteraction(); } // 첫 클릭 시 오디오 컨텍스트 시작
+
+        if (nextSceneId === null || nextSceneId === undefined) { console.error("Invalid nextSceneId:", nextSceneId); return; }
+        if (!storyData.some(scene => scene.sceneId === nextSceneId)) { console.error(`Next scene ID ${nextSceneId} does not exist.`); setError(`오류: 다음 장면(ID: ${nextSceneId}) 없음.`); return; }
 
         console.log(`Choice clicked! Transitioning to scene ID: ${nextSceneId}`);
         setError(null);
@@ -364,20 +384,12 @@ function App() {
             setCurrentSceneId(nextSceneId);
             setTimeout(() => setIsTransitioning(false), 50);
         }, 300);
-    }, [storyData]);
+    }, [storyData, handleUserInteraction, audioContextStarted]);
 
     // --- 렌더링 ---
-    if (isLoading) {
-        return <div className="flex items-center justify-center min-h-screen text-white bg-gray-900">로딩 중...</div>;
-    }
-
-    if (error) {
-        return <div className="flex items-center justify-center min-h-screen text-red-500 p-8 bg-gray-900 text-center">{error}</div>;
-    }
-
-    if (!currentScene) {
-        return <div className="flex items-center justify-center min-h-screen text-yellow-500 bg-gray-900">장면 데이터를 표시할 수 없습니다. 로딩 후 잠시 기다려주세요.</div>;
-    }
+    if (isLoading) { return <div className="flex items-center justify-center min-h-screen text-white bg-gray-900">로딩 중...</div>; }
+    if (error) { return <div className="flex items-center justify-center min-h-screen text-red-500 p-8 bg-gray-900 text-center">{error}</div>; }
+    if (!currentScene) { return <div className="flex items-center justify-center min-h-screen text-yellow-500 bg-gray-900">장면 데이터 준비 중...</div>; }
 
     const questionPosStyle = getPositionStyles(currentScene.questionPosition);
     const choicesPosStyle = getPositionStyles(currentScene.choicesPosition);
@@ -385,41 +397,24 @@ function App() {
     const transitionClasses = "transition-opacity duration-300 ease-in-out";
 
     return (
-        <div id="game-body" className="min-h-screen bg-gray-900 relative overflow-hidden">
-                {/* 질문 영역 */}
-                <div
-                    id="question-container"
-                    style={{ ...questionPosStyle, ...contentOpacityStyle }}
-                    className={`max-w-[90%] ${transitionClasses}`}
-                >
-                    {currentScene && (
-                        <Question
-                            text={currentScene.question}
-                            color={currentScene.questionColor}
-                            fontSize={currentScene.questionFontSize}
-                            textAlign={currentScene.questionTextAlign}
-                            containerStyles={currentScene.questionContainerStyles}
-                        />
-                    )}
-                </div>
+        // 최상위 div에 클릭 이벤트 리스너 추가
+        <div id="game-container" className="min-h-screen bg-gray-900 relative overflow-hidden" onClick={handleUserInteraction}>
+            {/* 배경 전용 div 추가 */}
+            <div
+                id="game-body"
+                className="absolute inset-0 w-full h-full -z-10" // 화면 전체 채우고 뒤로 보내기
+                style={backgroundStyle} // 상태에서 배경 스타일 적용
+            ></div>
 
-                {/* 답변 영역 */}
-                <div
-                    id="choices-container"
-                     style={{ ...choicesPosStyle, ...contentOpacityStyle }}
-                     className={`max-w-[90%] ${transitionClasses} delay-100`}
-                >
-                    {currentScene && (
-                        <Choices
-                            choices={currentScene.choices || []}
-                            sceneData={{...currentScene, currentSceneId}}
-                            onChoiceClick={handleChoiceClick}
-                            alignment={currentScene.choicesAlignment}
-                            containerStyles={currentScene.choicesContainerStyles}
-                        />
-                    )}
-                </div>
-                 <audio id="bgm-player" loop></audio>
+            {/* 질문 영역 */}
+            <div id="question-container" style={{ ...questionPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses}`}>
+                {currentScene && ( <Question text={currentScene.question} color={currentScene.questionColor} fontSize={currentScene.questionFontSize} textAlign={currentScene.questionTextAlign} containerStyles={currentScene.questionContainerStyles} /> )}
+            </div>
+            {/* 답변 영역 */}
+            <div id="choices-container" style={{ ...choicesPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-100`}>
+                {currentScene && ( <Choices choices={currentScene.choices || []} sceneData={{...currentScene, currentSceneId}} onChoiceClick={handleChoiceClick} alignment={currentScene.choicesAlignment} containerStyles={currentScene.choicesContainerStyles} /> )}
+            </div>
+             <audio id="bgm-player" loop></audio>
         </div>
     );
 }
