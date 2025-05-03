@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 // !!!! './index.css' import 라인 제거됨 !!!!
 // CSS import는 이제 src/main.jsx 에서 처리합니다.
 
-// --- Helper 함수들 (hexToRgba, getPositionStyles, getTextAlignClass, getChoicesAlignmentClass) ---
+// --- Helper 함수: Hex 색상 및 투명도 -> RGBA 변환 ---
 function hexToRgba(hexInput, opacityValue = 1.0) {
     let hex = String(hexInput || '').trim();
     if (!hex.startsWith('#') && /^[0-9A-Fa-f]{6}$/.test(hex)) { hex = '#' + hex; }
@@ -18,6 +18,8 @@ function hexToRgba(hexInput, opacityValue = 1.0) {
     if (isNaN(r) || isNaN(g) || isNaN(b)) { console.warn(`Parse failed: ${hexInput}`); return `rgba(0, 0, 0, ${numericOpacity})`; }
     return `rgba(${r}, ${g}, ${b}, ${numericOpacity})`;
 }
+
+// --- Helper 함수: 위치 문자열 -> Absolute Positioning 스타일 변환 ---
 function getPositionStyles(positionString = 'center-center') {
     // zIndex를 10으로 설정하여 배경보다 확실히 위에 오도록 함
     const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', zIndex: 10 };
@@ -37,9 +39,13 @@ function getPositionStyles(positionString = 'center-center') {
     if (positionString === 'bottom-right') { styles.transform = 'translate(0, 0)'; }
     return styles;
 }
+
+// --- Helper 함수: 텍스트 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getTextAlignClass(alignString = 'center') {
      switch (alignString) { case 'left': return 'text-left'; case 'right': return 'text-right'; case 'center': default: return 'text-center'; }
 }
+
+// --- Helper 함수: 버튼 그룹 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getChoicesAlignmentClass(alignmentString) {
     switch (alignmentString) { case 'left': return 'items-start'; case 'right': return 'items-end'; case 'center': default: return 'items-center'; }
 }
@@ -78,7 +84,7 @@ function App() {
     const [error, setError] = useState(null);
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [audioContextStarted, setAudioContextStarted] = useState(false);
-    const [backgroundStyle, setBackgroundStyle] = useState({ backgroundColor: '#333' });
+    const [backgroundStyle, setBackgroundStyle] = useState({ backgroundColor: '#333' }); // 배경 스타일 상태
 
     // Sheet.best API URL (이전 제공 값 사용)
     const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/0d608cb8-2511-4ebe-b962-ee74ec2cf588';
@@ -163,7 +169,7 @@ function App() {
 
     // --- 배경 및 BGM 업데이트 (currentScene 변경 시) ---
     useEffect(() => {
-        const bgmPlayer = document.getElementById('bgm-player');
+        const bgmPlayer = document.getElementById('bgm-player'); // bgmPlayer는 여기서 가져옴
 
         if (currentScene) {
             // --- 배경 이미지 업데이트 ---
@@ -175,7 +181,7 @@ function App() {
                 const img = new Image();
                 img.onload = () => {
                     console.log("[Debug] Background image preloaded successfully:", correctedImageUrl);
-                    setBackgroundStyle({
+                    setBackgroundStyle({ // 상태 업데이트 방식으로 변경
                         backgroundImage: `url(${correctedImageUrl})`,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
@@ -185,12 +191,12 @@ function App() {
                 }
                 img.onerror = () => {
                     console.error("[Debug] Failed to preload background image:", correctedImageUrl);
-                    setBackgroundStyle({ backgroundColor: '#333' });
+                    setBackgroundStyle({ backgroundColor: '#333' }); // 로드 실패 시 기본 배경색
                 }
                 img.src = correctedImageUrl;
             } else {
                 console.log("[Debug] No background image specified.");
-                setBackgroundStyle({ backgroundColor: '#333' });
+                setBackgroundStyle({ backgroundColor: '#333' }); // 이미지 없을 때 기본 배경색
             }
 
             // --- BGM 업데이트 ---
@@ -224,46 +230,52 @@ function App() {
                 } else { console.log("[Debug] No BGM specified or src is null/empty."); }
             } else { console.error("[Debug] #bgm-player element not found!"); }
         }
-    }, [currentScene, audioContextStarted]);
+    }, [currentScene, audioContextStarted]); // audioContextStarted 의존성 추가
 
     // --- 첫 사용자 인터랙션 시 오디오 컨텍스트 시작 ---
     const handleUserInteraction = useCallback(() => {
         if (audioContextStarted) { console.log("[Debug] Audio context already started."); return; }
         console.log("[Debug] User interaction detected, attempting to start audio context...");
         const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const bgmPlayer = document.getElementById('bgm-player');
+        const bgmPlayer = document.getElementById('bgm-player'); // 플레이어 가져오기
 
         const startAudio = () => {
              if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
                   console.log("[Debug] Attempting BGM play after interaction/context resume...");
                   bgmPlayer.play().catch(e => console.warn("[Debug] BGM play failed:", e));
              }
-             setAudioContextStarted(true);
+             setAudioContextStarted(true); // 상태 업데이트
         }
 
         if (AudioContext) {
             try {
+                // AudioContext는 한 번만 생성하는 것이 좋음 (앱 로드 시)
+                // 여기서는 간단하게 매번 생성 시도
                 const audioCtx = new AudioContext();
                 if (audioCtx.state === 'suspended') {
                     audioCtx.resume().then(() => {
                         console.log("[Debug] AudioContext resumed successfully.");
-                        startAudio();
+                        startAudio(); // 컨텍스트 재개 후 오디오 시작
                     }).catch(e => { console.error("[Debug] Failed to resume AudioContext:", e); setAudioContextStarted(true); });
                 } else {
                     console.log("[Debug] AudioContext state:", audioCtx.state);
-                    startAudio();
+                    startAudio(); // 이미 실행 중이면 오디오 시작
                 }
-            } catch (e) { console.error("[Error] Creating/Resuming AudioContext failed:", e); setAudioContextStarted(true); startAudio(); }
+            } catch (e) {
+                 console.error("[Error] Creating/Resuming AudioContext failed:", e);
+                 setAudioContextStarted(true); // 실패해도 상태는 true로
+                 startAudio(); // 오디오 컨텍스트 없이 재생 시도
+            }
         } else {
             console.warn("AudioContext is not supported.");
-            startAudio();
+            startAudio(); // AudioContext 없이 재생 시도
         }
     }, [audioContextStarted]);
 
 
     // --- 답변 선택 처리 (오디오 컨텍스트 시작 로직 추가) ---
     const handleChoiceClick = useCallback((nextSceneId) => {
-        if (!audioContextStarted) { handleUserInteraction(); }
+        if (!audioContextStarted) { handleUserInteraction(); } // 첫 클릭 시 오디오 컨텍스트 시작
 
         if (nextSceneId === null || nextSceneId === undefined) { console.error("Invalid nextSceneId:", nextSceneId); return; }
         if (!storyData.some(scene => scene.sceneId === nextSceneId)) { console.error(`Next scene ID ${nextSceneId} does not exist.`); setError(`오류: 다음 장면(ID: ${nextSceneId}) 없음.`); return; }
@@ -275,7 +287,7 @@ function App() {
             setCurrentSceneId(nextSceneId);
             setTimeout(() => setIsTransitioning(false), 50);
         }, 300);
-    }, [storyData, handleUserInteraction, audioContextStarted]);
+    }, [storyData, handleUserInteraction, audioContextStarted]); // 의존성 추가
 
     // --- 렌더링 ---
     if (isLoading) { return <div className="flex items-center justify-center min-h-screen text-white bg-gray-900">로딩 중...</div>; }
