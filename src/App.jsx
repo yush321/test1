@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 // !!!! './index.css' import 라인 제거됨 !!!!
 // CSS import는 이제 src/main.jsx 에서 처리합니다.
 
-// --- Helper 함수: Hex 색상 및 투명도 -> RGBA 변환 ---
+// --- Helper 함수들 (hexToRgba, getPositionStyles, getTextAlignClass, getChoicesAlignmentClass) ---
+// (이전 코드와 동일)
 function hexToRgba(hexInput, opacityValue = 1.0) {
     let hex = String(hexInput || '').trim();
     if (!hex.startsWith('#') && /^[0-9A-Fa-f]{6}$/.test(hex)) { hex = '#' + hex; }
@@ -18,10 +19,7 @@ function hexToRgba(hexInput, opacityValue = 1.0) {
     if (isNaN(r) || isNaN(g) || isNaN(b)) { console.warn(`Parse failed: ${hexInput}`); return `rgba(0, 0, 0, ${numericOpacity})`; }
     return `rgba(${r}, ${g}, ${b}, ${numericOpacity})`;
 }
-
-// --- Helper 함수: 위치 문자열 -> Absolute Positioning 스타일 변환 ---
 function getPositionStyles(positionString = 'center-center') {
-    // zIndex를 10으로 설정하여 다른 요소 위에 오도록 함
     const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', zIndex: 10 };
     const margin = '2rem';
     if (positionString.includes('top')) { styles.top = margin; styles.transform = 'translate(-50%, 0)'; }
@@ -39,13 +37,9 @@ function getPositionStyles(positionString = 'center-center') {
     if (positionString === 'bottom-right') { styles.transform = 'translate(0, 0)'; }
     return styles;
 }
-
-// --- Helper 함수: 텍스트 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getTextAlignClass(alignString = 'center') {
      switch (alignString) { case 'left': return 'text-left'; case 'right': return 'text-right'; case 'center': default: return 'text-center'; }
 }
-
-// --- Helper 함수: 버튼 그룹 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getChoicesAlignmentClass(alignmentString) {
     switch (alignmentString) { case 'left': return 'items-start'; case 'right': return 'items-end'; case 'center': default: return 'items-center'; }
 }
@@ -53,68 +47,16 @@ function getChoicesAlignmentClass(alignmentString) {
 
 // --- 컴포넌트 정의 ---
 
-// 이미지 프레임 컴포넌트 (신규)
-function ImageFrame({ imageUrl, containerStyles }) {
-    const [isImageLoading, setIsImageLoading] = useState(true);
-    const [imageError, setImageError] = useState(false);
-
-    useEffect(() => {
-        if (!imageUrl) {
-            setIsImageLoading(false);
-            setImageError(true); // URL 없으면 에러 처리
-            return;
-        };
-        setIsImageLoading(true);
-        setImageError(false);
-        const img = new Image();
-        img.onload = () => {
-            console.log("[Debug] Image loaded for frame:", imageUrl);
-            setIsImageLoading(false);
-            setImageError(false);
-        };
-        img.onerror = () => {
-            console.error("[Debug] Failed to load image for frame:", imageUrl);
-            setIsImageLoading(false);
-            setImageError(true);
-        };
-        img.src = imageUrl;
-    }, [imageUrl]); // imageUrl 변경 시 로딩 상태 초기화
-
-    // containerStyles는 Tailwind 클래스 문자열이어야 함 (예: 'w-64 h-48 p-2 bg-white rounded shadow-lg')
-    const containerClass = ` ${containerStyles || 'w-64 h-auto p-1 bg-gray-300 rounded shadow'}`; // 기본 스타일
-
-    return (
-        <div className={containerClass}>
-            {isImageLoading && <div className="w-full h-32 bg-gray-200 animate-pulse rounded"></div>}
-            {!isImageLoading && imageError && (
-                <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">
-                    이미지 로드 실패
-                </div>
-            )}
-            {!isImageLoading && !imageError && imageUrl && (
-                <img
-                    src={imageUrl}
-                    alt="Scene Image" // alt 텍스트 추가
-                    className="w-full h-full object-cover rounded" // 이미지가 프레임에 맞게 채워지도록
-                />
-            )}
-             {!isImageLoading && !imageError && !imageUrl && (
-                 <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">
-                    이미지 없음
-                </div>
-             )}
-        </div>
-    );
-}
-
-
-// 질문 컴포넌트
+// 질문 컴포넌트 (엔딩 텍스트 표시에도 사용)
 function Question({ text, color, fontSize, textAlign, containerStyles }) {
     const textStyle = { color: hexToRgba(color || '#FFFFFF'), };
     const containerClass = ` ${containerStyles || ''}`;
     const textClass = `leading-relaxed whitespace-pre-line max-w-prose ${fontSize || 'text-xl'} ${getTextAlignClass(textAlign)}`;
+    // text가 없을 경우 렌더링하지 않음 (선택 사항)
+    if (!text) return null;
     return ( <div className={containerClass}> <p className={textClass} style={textStyle}> {text} </p> </div> );
 }
+
 // 답변 버튼 컴포넌트
 function ChoiceButton({ choice, sceneData, onChoiceClick }) {
     const { buttonFontSize = 'text-base', buttonTextColor = '#374151', buttonBgColor = '#FFFFFF', buttonBgOpacity = '1', buttonHoverTextColor = buttonTextColor, buttonHoverBgColor = buttonBgColor, } = sceneData;
@@ -125,12 +67,17 @@ function ChoiceButton({ choice, sceneData, onChoiceClick }) {
     useEffect(() => { setCurrentStyle({ color: hexToRgba(buttonTextColor), backgroundColor: hexToRgba(buttonBgColor, opacityValue), }); }, [sceneData, buttonTextColor, buttonBgColor, buttonBgOpacity, opacityValue]);
     return ( <button className={`choice-button ${buttonFontSize}`} style={currentStyle} onClick={() => onChoiceClick(choice.nextSceneId)} onMouseOver={() => setCurrentStyle(hoverStyle)} onMouseOut={() => setCurrentStyle(normalStyle)} > {choice.text} </button> );
 }
+
 // 답변 목록 컴포넌트
 function Choices({ choices, sceneData, onChoiceClick, alignment, containerStyles }) {
     const containerClass = ` ${containerStyles || ''}`;
     const choicesListClass = `flex flex-col space-y-4 ${getChoicesAlignmentClass(alignment)}`;
     const { currentSceneId } = sceneData;
-    return ( <div className={containerClass}> <div className={choicesListClass}> {Array.isArray(choices) && choices.length > 0 ? ( choices.map((choice, index) => ( <ChoiceButton key={`${currentSceneId}-${index}`} choice={choice} sceneData={sceneData} onChoiceClick={onChoiceClick} /> )) ) : ( <p className="text-gray-400 italic">선택지가 없습니다.</p> )} </div> </div> );
+    // choices가 없거나 비어있으면 렌더링하지 않음
+    if (!Array.isArray(choices) || choices.length === 0) {
+        return null;
+    }
+    return ( <div className={containerClass}> <div className={choicesListClass}> {choices.map((choice, index) => ( <ChoiceButton key={`${currentSceneId}-${index}`} choice={choice} sceneData={sceneData} onChoiceClick={onChoiceClick} /> )) } </div> </div> );
 }
 
 
@@ -142,11 +89,10 @@ function App() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isTransitioning, setIsTransitioning] = useState(false);
-    const [audioContextStarted, setAudioContextStarted] = useState(false);
-    // 배경 스타일 상태 제거 -> 기본 배경색만 사용
+    const [shareMessage, setShareMessage] = useState(''); // 공유 완료 메시지 상태
 
     // Sheet.best API URL (이전 제공 값 사용)
-    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/55e6d946-6fe2-44c2-93ff-43f8bfb42879';
+    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/8eb81a40-232e-413d-8740-a0a774fd4ab6';
 
     // --- choices 문자열 파싱 함수 ---
     const parseChoices = useCallback((choicesString) => {
@@ -155,6 +101,8 @@ function App() {
         if (typeof choicesString !== 'string' || choicesString.trim() === '') return [];
         try {
             const cleanedString = choicesString.replace(/[\n\r\t]/g, '').trim();
+            // 빈 문자열이면 빈 배열 반환
+            if (!cleanedString) return [];
             const parsed = JSON.parse(cleanedString);
             if (!Array.isArray(parsed)) { console.warn("Parsed choices is not an array:", parsed); return []; }
             return parsed.map(choice => {
@@ -164,6 +112,7 @@ function App() {
             }).filter(choice => choice !== null);
         } catch (e) {
             console.error("Failed to parse choices string:", `"${choicesString}"`, "\nError:", e);
+            // 파싱 오류 시 빈 배열 반환 (오류는 fetchData에서 처리)
             throw new Error(`'choices' 데이터 파싱 오류: ${e.message}. 입력값: "${choicesString}"`);
         }
     }, []);
@@ -191,7 +140,13 @@ function App() {
                     try {
                         const sceneId = parseInt(row.sceneId, 10);
                         if (isNaN(sceneId)) { console.warn(`Invalid sceneId @ row ${index + 1}:`, row.sceneId); return null; }
-                        return { ...row, sceneId: sceneId, choices: parseChoices(row.choices), };
+                        // sceneType 필드 추가 (없으면 기본값 'question')
+                        return {
+                            ...row,
+                            sceneId: sceneId,
+                            choices: parseChoices(row.choices),
+                            sceneType: row.sceneType || 'question' // sceneType 가져오기
+                        };
                     } catch (parseError) { console.error(`Error processing row ${index + 1}:`, parseError); processingError = parseError; return null; }
                 }).filter(row => row !== null);
 
@@ -221,70 +176,31 @@ function App() {
     useEffect(() => {
         if (storyData.length > 0) {
             const scene = storyData.find(s => s.sceneId === currentSceneId);
-            if (scene) { setCurrentScene(scene); }
+            if (scene) { setCurrentScene(scene); setShareMessage(''); } // 장면 변경 시 공유 메시지 초기화
             else { console.error(`Critical Error: Scene ID ${currentSceneId} not found.`); setError(`오류: 장면(ID: ${currentSceneId}) 없음.`); }
         }
     }, [currentSceneId, storyData]);
 
-    // --- BGM 업데이트 (currentScene 변경 시) ---
+    // --- 배경 업데이트 (currentScene 변경 시) ---
     useEffect(() => {
-        const bgmPlayer = document.getElementById('bgm-player');
+        const gameContainer = document.getElementById('game-container'); // 배경 적용 대상
 
-        if (currentScene && bgmPlayer) {
-            // --- BGM 업데이트 로직만 남김 ---
-            const musicSrc = currentScene.backgroundMusic;
-            console.log("[Debug] Updating BGM. URL from data:", musicSrc);
-            const currentSrc = bgmPlayer.getAttribute('src');
+        if (currentScene && gameContainer) {
+            const imageUrl = currentScene.backgroundImage; // 이제 이미지 프레임 URL
+            // 배경색은 기본 회색으로 유지하거나, 시트에서 배경색을 지정할 수도 있음
+            gameContainer.style.backgroundImage = 'none';
+            gameContainer.style.backgroundColor = '#111827'; // 기본 어두운 배경색 (Tailwind bg-gray-900)
 
-            if (musicSrc && musicSrc !== currentSrc) {
-                console.log("[Debug] Setting new BGM src:", musicSrc);
-                bgmPlayer.src = musicSrc;
-                bgmPlayer.load();
-                console.log("[Debug] BGM source set.");
-                if (audioContextStarted) {
-                     console.log("[Debug] Audio context started, attempting play...");
-                     bgmPlayer.play().catch(e => console.warn("[Debug] BGM play prevented:", e));
-                } else { console.log("[Debug] Audio context not started, BGM won't autoplay."); }
-            } else if (!musicSrc && currentSrc) {
-                console.log("[Debug] Pausing BGM and removing src.");
-                bgmPlayer.pause(); bgmPlayer.currentTime = 0; bgmPlayer.removeAttribute('src');
-            } else if (musicSrc && musicSrc === currentSrc) {
-                console.log("[Debug] BGM src is the same.");
-                 if (audioContextStarted && bgmPlayer.paused) {
-                      console.log("[Debug] Attempting to replay BGM...");
-                      bgmPlayer.play().catch(e => console.warn("[Debug] BGM replay prevented:", e));
-                 }
-            } else { console.log("[Debug] No BGM specified or src is null/empty."); }
-        } else if (!bgmPlayer) { console.error("[Debug] #bgm-player element not found!"); }
-    }, [currentScene, audioContextStarted]); // audioContextStarted 의존성 유지
+            // 이미지 프레임에 사용될 이미지 로깅 (실제 표시는 ImageFrame 컴포넌트에서)
+            console.log("[Debug] Image URL for frame:", imageUrl);
 
-    // --- 첫 사용자 인터랙션 시 오디오 컨텍스트 시작 ---
-    const handleUserInteraction = useCallback(() => {
-        if (audioContextStarted) { return; }
-        console.log("[Debug] User interaction detected, attempting to start audio context...");
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const bgmPlayer = document.getElementById('bgm-player');
-        const startAudio = () => {
-             if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
-                  bgmPlayer.play().catch(e => console.warn("[Debug] BGM play failed:", e));
-             }
-             setAudioContextStarted(true);
+            // BGM 로직 제거됨
         }
-        if (AudioContext) {
-            try {
-                const audioCtx = new AudioContext();
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume().then(() => { console.log("[Debug] AudioContext resumed."); startAudio(); })
-                                     .catch(e => { console.error("[Debug] Failed to resume AC:", e); setAudioContextStarted(true); });
-                } else { console.log("[Debug] AC state:", audioCtx.state); startAudio(); }
-            } catch (e) { console.error("[Error] Creating/Resuming AC failed:", e); setAudioContextStarted(true); startAudio(); }
-        } else { console.warn("AudioContext not supported."); startAudio(); }
-    }, [audioContextStarted]);
+    }, [currentScene]);
 
 
-    // --- 답변 선택 처리 (오디오 컨텍스트 시작 로직 추가) ---
+    // --- 답변 선택 처리 ---
     const handleChoiceClick = useCallback((nextSceneId) => {
-        if (!audioContextStarted) { handleUserInteraction(); }
         if (nextSceneId === null || nextSceneId === undefined) { console.error("Invalid nextSceneId:", nextSceneId); return; }
         if (!storyData.some(scene => scene.sceneId === nextSceneId)) { console.error(`Next scene ID ${nextSceneId} does not exist.`); setError(`오류: 다음 장면(ID: ${nextSceneId}) 없음.`); return; }
         console.log(`Choice clicked! Transitioning to scene ID: ${nextSceneId}`);
@@ -294,46 +210,109 @@ function App() {
             setCurrentSceneId(nextSceneId);
             setTimeout(() => setIsTransitioning(false), 50);
         }, 300);
-    }, [storyData, handleUserInteraction, audioContextStarted]);
+    }, [storyData]);
+
+    // --- 공유 버튼 클릭 처리 ---
+    const handleShareClick = useCallback(async () => {
+        if (!currentScene || currentScene.sceneType !== 'ending') return;
+
+        const shareText = `[게임 결과]\n${currentScene.question}\n\n${window.location.href}`; // 공유할 텍스트 (결과 + 게임 주소)
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(shareText);
+                setShareMessage('결과가 클립보드에 복사되었습니다!');
+                console.log('Result copied to clipboard');
+            } else if (navigator.share) { // 모바일 등 웹 공유 API 지원 시
+                 await navigator.share({
+                     title: '게임 결과 공유',
+                     text: shareText,
+                     // url: window.location.href // URL 포함 시
+                 });
+                 setShareMessage('공유 완료!'); // 웹 공유 API는 별도 메시지 불필요할 수 있음
+                 console.log('Result shared via Web Share API');
+            } else {
+                 // 클립보드, 웹 공유 모두 미지원 시
+                 setShareMessage('공유 기능을 지원하지 않는 환경입니다.');
+                 console.warn('Clipboard API and Web Share API not supported.');
+            }
+        } catch (err) {
+            console.error('Failed to share:', err);
+            setShareMessage('공유 중 오류가 발생했습니다.');
+        }
+        // 메시지 잠시 후 사라지게
+        setTimeout(() => setShareMessage(''), 3000);
+    }, [currentScene]);
+
 
     // --- 렌더링 ---
     if (isLoading) { return <div className="flex items-center justify-center min-h-screen text-white bg-gray-900">로딩 중...</div>; }
     if (error) { return <div className="flex items-center justify-center min-h-screen text-red-500 p-8 bg-gray-900 text-center">{error}</div>; }
     if (!currentScene) { return <div className="flex items-center justify-center min-h-screen text-yellow-500 bg-gray-900">장면 데이터 준비 중...</div>; }
 
-    // !!!! 스타일 계산 부분 수정 !!!!
     const questionPosStyle = getPositionStyles(currentScene.questionPosition);
+    const imagePosStyle = getPositionStyles(currentScene.imagePosition || 'center-center');
     const choicesPosStyle = getPositionStyles(currentScene.choicesPosition);
-    const imagePosStyle = getPositionStyles(currentScene.imagePosition || 'center-center'); // 이미지 위치 기본값 설정
     const contentOpacityStyle = { opacity: isTransitioning ? 0 : 1 };
     const transitionClasses = "transition-opacity duration-300 ease-in-out";
 
+    // 엔딩 장면인지 확인
+    const isEndingScene = currentScene.sceneType === 'ending';
+
     return (
-        // 최상위 div에 클릭 이벤트 리스너 추가, 기본 배경색 적용
+        // 최상위 div
         <div
             id="game-container"
             className="min-h-screen bg-gray-900 relative overflow-hidden" // 기본 배경색 설정
-            onClick={handleUserInteraction}
         >
-            {/* 이미지 프레임 영역 (신규) */}
-            <div id="image-frame-container" style={{ ...imagePosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-50`}> {/* 약간 다른 딜레이 */}
+            {/* 이미지 프레임 영역 */}
+            <div id="image-frame-container" style={{ ...imagePosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-50`}>
                  {currentScene && (
                     <ImageFrame
-                        imageUrl={currentScene.backgroundImage} // 배경이미지 URL을 이미지 프레임에 전달
-                        containerStyles={currentScene.imageContainerStyles} // 이미지 프레임 스타일
+                        imageUrl={currentScene.backgroundImage} // 이미지 프레임 URL
+                        containerStyles={currentScene.imageContainerStyles}
                     />
                  )}
             </div>
 
-            {/* 질문 영역 */}
+            {/* 질문/결과 텍스트 영역 */}
             <div id="question-container" style={{ ...questionPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses}`}>
                 {currentScene && ( <Question text={currentScene.question} color={currentScene.questionColor} fontSize={currentScene.questionFontSize} textAlign={currentScene.questionTextAlign} containerStyles={currentScene.questionContainerStyles} /> )}
             </div>
-            {/* 답변 영역 */}
-            <div id="choices-container" style={{ ...choicesPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-100`}>
-                {currentScene && ( <Choices choices={currentScene.choices || []} sceneData={{...currentScene, currentSceneId}} onChoiceClick={handleChoiceClick} alignment={currentScene.choicesAlignment} containerStyles={currentScene.choicesContainerStyles} /> )}
+
+            {/* 답변 영역 또는 공유 버튼 영역 */}
+            <div id="choices-or-share-container" style={{ ...choicesPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-100`}>
+                {currentScene && !isEndingScene && ( // 엔딩이 아닐 때만 답변 표시
+                    <Choices
+                        choices={currentScene.choices || []}
+                        sceneData={{...currentScene, currentSceneId}}
+                        onChoiceClick={handleChoiceClick}
+                        alignment={currentScene.choicesAlignment}
+                        containerStyles={currentScene.choicesContainerStyles}
+                    />
+                )}
+                {currentScene && isEndingScene && ( // 엔딩일 때만 공유 버튼 표시
+                    <div className={`flex flex-col items-${currentScene.choicesAlignment || 'center'} ${currentScene.choicesContainerStyles || 'p-6 mb-8'}`}>
+                        <button
+                            onClick={handleShareClick}
+                            className="choice-button bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 rounded-lg shadow-md transition duration-300" // 공유 버튼 스타일
+                        >
+                            결과 공유하기
+                        </button>
+                        {shareMessage && ( // 공유 완료 메시지 표시
+                            <p className="mt-2 text-sm text-green-400">{shareMessage}</p>
+                        )}
+                        {/* 필요시 '다시 시작' 버튼 추가 */}
+                         <button
+                            onClick={() => handleChoiceClick(1)} // 1번 씬으로 이동
+                            className="choice-button bg-gray-500 hover:bg-gray-600 text-white px-8 py-3 rounded-lg shadow-md transition duration-300 mt-4" // 다시 시작 버튼 스타일
+                        >
+                            다시 시작하기
+                        </button>
+                    </div>
+                )}
             </div>
-             <audio id="bgm-player" loop playsInline></audio>
+             {/* 오디오 태그 제거됨 */}
         </div>
     );
 }
