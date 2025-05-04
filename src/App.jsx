@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 // !!!! './index.css' import 라인 제거됨 !!!!
 // CSS import는 이제 src/main.jsx 에서 처리합니다.
 
-// --- Helper 함수들 (hexToRgba, getPositionStyles, getTextAlignClass, getChoicesAlignmentClass) ---
-// (이전 코드와 동일)
+// --- Helper 함수: Hex 색상 및 투명도 -> RGBA 변환 ---
 function hexToRgba(hexInput, opacityValue = 1.0) {
     let hex = String(hexInput || '').trim();
     if (!hex.startsWith('#') && /^[0-9A-Fa-f]{6}$/.test(hex)) { hex = '#' + hex; }
@@ -19,6 +18,8 @@ function hexToRgba(hexInput, opacityValue = 1.0) {
     if (isNaN(r) || isNaN(g) || isNaN(b)) { console.warn(`Parse failed: ${hexInput}`); return `rgba(0, 0, 0, ${numericOpacity})`; }
     return `rgba(${r}, ${g}, ${b}, ${numericOpacity})`;
 }
+
+// --- Helper 함수: 위치 문자열 -> Absolute Positioning 스타일 변환 ---
 function getPositionStyles(positionString = 'center-center') {
     // zIndex를 10으로 설정하여 다른 요소 위에 오도록 함
     const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', zIndex: 10 };
@@ -38,9 +39,13 @@ function getPositionStyles(positionString = 'center-center') {
     if (positionString === 'bottom-right') { styles.transform = 'translate(0, 0)'; }
     return styles;
 }
+
+// --- Helper 함수: 텍스트 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getTextAlignClass(alignString = 'center') {
      switch (alignString) { case 'left': return 'text-left'; case 'right': return 'text-right'; case 'center': default: return 'text-center'; }
 }
+
+// --- Helper 함수: 버튼 그룹 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getChoicesAlignmentClass(alignmentString) {
     switch (alignmentString) { case 'left': return 'items-start'; case 'right': return 'items-end'; case 'center': default: return 'items-center'; }
 }
@@ -80,20 +85,20 @@ function ImageFrame({ imageUrl, containerStyles }) {
 
     return (
         <div className={containerClass}>
-            {isLoading && <div className="w-full h-32 bg-gray-200 animate-pulse rounded"></div>}
-            {!isLoading && imageError && (
+            {isImageLoading && <div className="w-full h-32 bg-gray-200 animate-pulse rounded"></div>}
+            {!isImageLoading && imageError && (
                 <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">
                     이미지 로드 실패
                 </div>
             )}
-            {!isLoading && !imageError && imageUrl && (
+            {!isImageLoading && !imageError && imageUrl && (
                 <img
                     src={imageUrl}
-                    alt="Scene Image"
+                    alt="Scene Image" // alt 텍스트 추가
                     className="w-full h-full object-cover rounded" // 이미지가 프레임에 맞게 채워지도록
                 />
             )}
-             {!isLoading && !imageError && !imageUrl && (
+             {!isImageLoading && !imageError && !imageUrl && (
                  <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">
                     이미지 없음
                 </div>
@@ -141,7 +146,7 @@ function App() {
     // 배경 스타일 상태 제거 -> 기본 배경색만 사용
 
     // Sheet.best API URL (이전 제공 값 사용)
-    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/689b5f14-c9b8-4644-846c-b3332f26031b';
+    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/84e4fbee-55f8-44f9-95ab-b6fa4a8a33e5';
 
     // --- choices 문자열 파싱 함수 ---
     const parseChoices = useCallback((choicesString) => {
