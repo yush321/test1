@@ -252,7 +252,7 @@ function App() {
     // --- 공유 버튼 클릭 처리 ---
     const handleShareClick = useCallback(async () => {
         if (!currentScene || currentScene.sceneType !== 'ending') return;
-        const shareText = `[게임 결과]\n${currentScene.question}\n\n${window.location.href}`;
+        const shareText = `[나는 나르시시즘인가? ]\n${currentScene.question}\n\n${window.location.href}`;
         try {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(shareText);
