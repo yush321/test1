@@ -81,7 +81,7 @@ function App() {
     const [backgroundStyle, setBackgroundStyle] = useState({ backgroundColor: '#333' });
 
     // Sheet.best API URL (이전 제공 값 사용)
-    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/0d608cb8-2511-4ebe-b962-ee74ec2cf588';
+    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/845325a1-cd98-4037-b5a7-7b42b251de13';
 
     // --- choices 문자열 파싱 함수 ---
     const parseChoices = useCallback((choicesString) => {
@@ -164,48 +164,47 @@ function App() {
     // --- 배경 및 BGM 업데이트 (currentScene 변경 시) ---
     useEffect(() => {
         const bgmPlayer = document.getElementById('bgm-player');
+        const gameContainer = document.getElementById('game-container'); // 배경 적용 대상
 
-        if (currentScene) {
+        if (currentScene && gameContainer) {
             // --- 배경 이미지 업데이트 ---
-            const imageUrl = currentScene.backgroundImage; // Google Sheets에서 가져온 경로 그대로 사용
-            console.log("[Debug] Updating background. Path from data:", imageUrl);
+            const imageUrl = currentScene.backgroundImage; // Google Sheets에서 가져온 URL 그대로 사용
+            console.log("[Debug] Updating background. URL from data:", imageUrl);
             if (imageUrl) {
                 // !!!! 경로 보정 로직 제거 !!!!
-                // const correctedImageUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
-                console.log("[Debug] Using image URL directly:", imageUrl);
                 const img = new Image();
                 img.onload = () => {
                     console.log("[Debug] Background image preloaded successfully:", imageUrl);
-                    setBackgroundStyle({
-                        backgroundImage: `url(${imageUrl})`, // 가져온 경로 그대로 사용
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        transition: 'background-image 0.8s ease-in-out'
-                    });
+                    // !!!! #game-container 요소에 직접 스타일 적용 !!!!
+                    gameContainer.style.backgroundImage = `url(${imageUrl})`; // URL 그대로 사용
+                    gameContainer.style.backgroundSize = 'cover';
+                    gameContainer.style.backgroundPosition = 'center';
+                    gameContainer.style.backgroundRepeat = 'no-repeat';
+                    gameContainer.style.transition = 'background-image 0.8s ease-in-out';
+                    gameContainer.style.backgroundColor = ''; // 배경색 제거
                 }
                 img.onerror = () => {
                     console.error("[Debug] Failed to preload background image:", imageUrl);
-                    setBackgroundStyle({ backgroundColor: '#333' });
+                    gameContainer.style.backgroundImage = 'none';
+                    gameContainer.style.backgroundColor = '#333'; // 로드 실패 시 기본 배경색
                 }
-                img.src = imageUrl; // 가져온 경로 그대로 사용
+                img.src = imageUrl; // URL 그대로 사용
             } else {
                 console.log("[Debug] No background image specified.");
-                setBackgroundStyle({ backgroundColor: '#333' });
+                gameContainer.style.backgroundImage = 'none';
+                gameContainer.style.backgroundColor = '#333'; // 이미지 없을 때 기본 배경색
             }
 
             // --- BGM 업데이트 ---
             if (bgmPlayer) {
-                const musicSrc = currentScene.backgroundMusic; // Google Sheets에서 가져온 경로 그대로 사용
-                console.log("[Debug] Updating BGM. Path from data:", musicSrc);
+                const musicSrc = currentScene.backgroundMusic; // Google Sheets에서 가져온 URL 그대로 사용
+                console.log("[Debug] Updating BGM. URL from data:", musicSrc);
                 const currentSrc = bgmPlayer.getAttribute('src');
                 // !!!! 경로 보정 로직 제거 !!!!
-                // const correctedMusicSrc = musicSrc && !musicSrc.startsWith('/') && !musicSrc.startsWith('http') ? `/${musicSrc}` : musicSrc;
-                console.log("[Debug] Using music URL directly:", musicSrc);
 
                 if (musicSrc && musicSrc !== currentSrc) {
                     console.log("[Debug] Setting new BGM src:", musicSrc);
-                    bgmPlayer.src = musicSrc; // 가져온 경로 그대로 사용
+                    bgmPlayer.src = musicSrc; // URL 그대로 사용
                     bgmPlayer.load();
                     console.log("[Debug] BGM source set.");
                     if (audioContextStarted) {
@@ -223,51 +222,42 @@ function App() {
                      }
                 } else { console.log("[Debug] No BGM specified or src is null/empty."); }
             } else { console.error("[Debug] #bgm-player element not found!"); }
+        } else if (!currentScene) {
+             console.log("[Debug] currentScene is null, skipping background update.");
+        } else if (!gameContainer) {
+             console.error("[Debug] #game-container element not found!");
         }
     }, [currentScene, audioContextStarted]); // audioContextStarted 의존성 유지
 
     // --- 첫 사용자 인터랙션 시 오디오 컨텍스트 시작 ---
     const handleUserInteraction = useCallback(() => {
-        if (audioContextStarted) { console.log("[Debug] Audio context already started."); return; }
+        if (audioContextStarted) { return; }
         console.log("[Debug] User interaction detected, attempting to start audio context...");
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const bgmPlayer = document.getElementById('bgm-player');
-
         const startAudio = () => {
              if (bgmPlayer && bgmPlayer.paused && bgmPlayer.currentSrc) {
-                  console.log("[Debug] Attempting BGM play after interaction/context resume...");
                   bgmPlayer.play().catch(e => console.warn("[Debug] BGM play failed:", e));
              }
              setAudioContextStarted(true);
         }
-
         if (AudioContext) {
             try {
                 const audioCtx = new AudioContext();
                 if (audioCtx.state === 'suspended') {
-                    audioCtx.resume().then(() => {
-                        console.log("[Debug] AudioContext resumed successfully.");
-                        startAudio();
-                    }).catch(e => { console.error("[Debug] Failed to resume AudioContext:", e); setAudioContextStarted(true); });
-                } else {
-                    console.log("[Debug] AudioContext state:", audioCtx.state);
-                    startAudio();
-                }
-            } catch (e) { console.error("[Error] Creating/Resuming AudioContext failed:", e); setAudioContextStarted(true); startAudio(); }
-        } else {
-            console.warn("AudioContext is not supported.");
-            startAudio();
-        }
+                    audioCtx.resume().then(() => { console.log("[Debug] AudioContext resumed."); startAudio(); })
+                                     .catch(e => { console.error("[Debug] Failed to resume AC:", e); setAudioContextStarted(true); });
+                } else { console.log("[Debug] AC state:", audioCtx.state); startAudio(); }
+            } catch (e) { console.error("[Error] Creating/Resuming AC failed:", e); setAudioContextStarted(true); startAudio(); }
+        } else { console.warn("AudioContext not supported."); startAudio(); }
     }, [audioContextStarted]);
 
 
     // --- 답변 선택 처리 (오디오 컨텍스트 시작 로직 추가) ---
     const handleChoiceClick = useCallback((nextSceneId) => {
         if (!audioContextStarted) { handleUserInteraction(); }
-
         if (nextSceneId === null || nextSceneId === undefined) { console.error("Invalid nextSceneId:", nextSceneId); return; }
         if (!storyData.some(scene => scene.sceneId === nextSceneId)) { console.error(`Next scene ID ${nextSceneId} does not exist.`); setError(`오류: 다음 장면(ID: ${nextSceneId}) 없음.`); return; }
-
         console.log(`Choice clicked! Transitioning to scene ID: ${nextSceneId}`);
         setError(null);
         setIsTransitioning(true);
@@ -291,19 +281,19 @@ function App() {
         // 최상위 div에 클릭 이벤트 리스너 추가 및 배경 스타일 적용
         <div
             id="game-container"
-            className="min-h-screen relative overflow-hidden bg-cover bg-center bg-no-repeat" // 기본 배경색 제거, 배경 관련 클래스 추가
-            style={backgroundStyle} // 상태에서 배경 스타일 적용
+            className="min-h-screen relative overflow-hidden bg-cover bg-center bg-no-repeat"
+            // style={backgroundStyle} // 상태 대신 useEffect에서 직접 적용
             onClick={handleUserInteraction}
         >
             {/* 배경 전용 div 제거 */}
 
             {/* 질문 영역 */}
-            {/* zIndex: 10 스타일 객체에서 적용 */}
+            {/* zIndex는 스타일 객체에서 적용 */}
             <div id="question-container" style={{ ...questionPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses}`}>
                 {currentScene && ( <Question text={currentScene.question} color={currentScene.questionColor} fontSize={currentScene.questionFontSize} textAlign={currentScene.questionTextAlign} containerStyles={currentScene.questionContainerStyles} /> )}
             </div>
             {/* 답변 영역 */}
-             {/* zIndex: 10 스타일 객체에서 적용 */}
+             {/* zIndex는 스타일 객체에서 적용 */}
             <div id="choices-container" style={{ ...choicesPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-100`}>
                 {currentScene && ( <Choices choices={currentScene.choices || []} sceneData={{...currentScene, currentSceneId}} onChoiceClick={handleChoiceClick} alignment={currentScene.choicesAlignment} containerStyles={currentScene.choicesContainerStyles} /> )}
             </div>
