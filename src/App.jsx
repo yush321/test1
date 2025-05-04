@@ -146,7 +146,7 @@ function App() {
     // 배경 스타일 상태 제거 -> 기본 배경색만 사용
 
     // Sheet.best API URL (이전 제공 값 사용)
-    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/84e4fbee-55f8-44f9-95ab-b6fa4a8a33e5';
+    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/55e6d946-6fe2-44c2-93ff-43f8bfb42879';
 
     // --- choices 문자열 파싱 함수 ---
     const parseChoices = useCallback((choicesString) => {
