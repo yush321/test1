@@ -20,6 +20,7 @@ function hexToRgba(hexInput, opacityValue = 1.0) {
     return `rgba(${r}, ${g}, ${b}, ${numericOpacity})`;
 }
 function getPositionStyles(positionString = 'center-center') {
+    // zIndex를 10으로 설정하여 다른 요소 위에 오도록 함
     const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', zIndex: 10 };
     const margin = '2rem';
     if (positionString.includes('top')) { styles.top = margin; styles.transform = 'translate(-50%, 0)'; }
@@ -45,13 +46,71 @@ function getChoicesAlignmentClass(alignmentString) {
 }
 
 
-// --- 컴포넌트 정의 (Question, ChoiceButton, Choices) ---
+// --- 컴포넌트 정의 ---
+
+// 이미지 프레임 컴포넌트 (신규)
+function ImageFrame({ imageUrl, containerStyles }) {
+    const [isImageLoading, setIsImageLoading] = useState(true);
+    const [imageError, setImageError] = useState(false);
+
+    useEffect(() => {
+        if (!imageUrl) {
+            setIsImageLoading(false);
+            setImageError(true); // URL 없으면 에러 처리
+            return;
+        };
+        setIsImageLoading(true);
+        setImageError(false);
+        const img = new Image();
+        img.onload = () => {
+            console.log("[Debug] Image loaded for frame:", imageUrl);
+            setIsImageLoading(false);
+            setImageError(false);
+        };
+        img.onerror = () => {
+            console.error("[Debug] Failed to load image for frame:", imageUrl);
+            setIsImageLoading(false);
+            setImageError(true);
+        };
+        img.src = imageUrl;
+    }, [imageUrl]); // imageUrl 변경 시 로딩 상태 초기화
+
+    // containerStyles는 Tailwind 클래스 문자열이어야 함 (예: 'w-64 h-48 p-2 bg-white rounded shadow-lg')
+    const containerClass = ` ${containerStyles || 'w-64 h-auto p-1 bg-gray-300 rounded shadow'}`; // 기본 스타일
+
+    return (
+        <div className={containerClass}>
+            {isLoading && <div className="w-full h-32 bg-gray-200 animate-pulse rounded"></div>}
+            {!isLoading && imageError && (
+                <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">
+                    이미지 로드 실패
+                </div>
+            )}
+            {!isLoading && !imageError && imageUrl && (
+                <img
+                    src={imageUrl}
+                    alt="Scene Image"
+                    className="w-full h-full object-cover rounded" // 이미지가 프레임에 맞게 채워지도록
+                />
+            )}
+             {!isLoading && !imageError && !imageUrl && (
+                 <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">
+                    이미지 없음
+                </div>
+             )}
+        </div>
+    );
+}
+
+
+// 질문 컴포넌트
 function Question({ text, color, fontSize, textAlign, containerStyles }) {
     const textStyle = { color: hexToRgba(color || '#FFFFFF'), };
     const containerClass = ` ${containerStyles || ''}`;
     const textClass = `leading-relaxed whitespace-pre-line max-w-prose ${fontSize || 'text-xl'} ${getTextAlignClass(textAlign)}`;
     return ( <div className={containerClass}> <p className={textClass} style={textStyle}> {text} </p> </div> );
 }
+// 답변 버튼 컴포넌트
 function ChoiceButton({ choice, sceneData, onChoiceClick }) {
     const { buttonFontSize = 'text-base', buttonTextColor = '#374151', buttonBgColor = '#FFFFFF', buttonBgOpacity = '1', buttonHoverTextColor = buttonTextColor, buttonHoverBgColor = buttonBgColor, } = sceneData;
     const opacityValue = String(buttonBgOpacity).includes('bg-opacity-') ? parseInt(String(buttonBgOpacity).split('-').pop() || '100', 10) / 100 : parseFloat(buttonBgOpacity) || 1.0;
@@ -61,6 +120,7 @@ function ChoiceButton({ choice, sceneData, onChoiceClick }) {
     useEffect(() => { setCurrentStyle({ color: hexToRgba(buttonTextColor), backgroundColor: hexToRgba(buttonBgColor, opacityValue), }); }, [sceneData, buttonTextColor, buttonBgColor, buttonBgOpacity, opacityValue]);
     return ( <button className={`choice-button ${buttonFontSize}`} style={currentStyle} onClick={() => onChoiceClick(choice.nextSceneId)} onMouseOver={() => setCurrentStyle(hoverStyle)} onMouseOut={() => setCurrentStyle(normalStyle)} > {choice.text} </button> );
 }
+// 답변 목록 컴포넌트
 function Choices({ choices, sceneData, onChoiceClick, alignment, containerStyles }) {
     const containerClass = ` ${containerStyles || ''}`;
     const choicesListClass = `flex flex-col space-y-4 ${getChoicesAlignmentClass(alignment)}`;
@@ -78,10 +138,10 @@ function App() {
     const [error, setError] = useState(null);
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [audioContextStarted, setAudioContextStarted] = useState(false);
-    const [backgroundStyle, setBackgroundStyle] = useState({ backgroundColor: '#333' });
+    // 배경 스타일 상태 제거 -> 기본 배경색만 사용
 
     // Sheet.best API URL (이전 제공 값 사용)
-    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/845325a1-cd98-4037-b5a7-7b42b251de13';
+    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/689b5f14-c9b8-4644-846c-b3332f26031b';
 
     // --- choices 문자열 파싱 함수 ---
     const parseChoices = useCallback((choicesString) => {
@@ -161,72 +221,36 @@ function App() {
         }
     }, [currentSceneId, storyData]);
 
-    // --- 배경 및 BGM 업데이트 (currentScene 변경 시) ---
+    // --- BGM 업데이트 (currentScene 변경 시) ---
     useEffect(() => {
         const bgmPlayer = document.getElementById('bgm-player');
-        const gameContainer = document.getElementById('game-container'); // 배경 적용 대상
 
-        if (currentScene && gameContainer) {
-            // --- 배경 이미지 업데이트 ---
-            const imageUrl = currentScene.backgroundImage; // Google Sheets에서 가져온 URL 그대로 사용
-            console.log("[Debug] Updating background. URL from data:", imageUrl);
-            if (imageUrl) {
-                // !!!! 경로 보정 로직 제거 !!!!
-                const img = new Image();
-                img.onload = () => {
-                    console.log("[Debug] Background image preloaded successfully:", imageUrl);
-                    // !!!! #game-container 요소에 직접 스타일 적용 !!!!
-                    gameContainer.style.backgroundImage = `url(${imageUrl})`; // URL 그대로 사용
-                    gameContainer.style.backgroundSize = 'cover';
-                    gameContainer.style.backgroundPosition = 'center';
-                    gameContainer.style.backgroundRepeat = 'no-repeat';
-                    gameContainer.style.transition = 'background-image 0.8s ease-in-out';
-                    gameContainer.style.backgroundColor = ''; // 배경색 제거
-                }
-                img.onerror = () => {
-                    console.error("[Debug] Failed to preload background image:", imageUrl);
-                    gameContainer.style.backgroundImage = 'none';
-                    gameContainer.style.backgroundColor = '#333'; // 로드 실패 시 기본 배경색
-                }
-                img.src = imageUrl; // URL 그대로 사용
-            } else {
-                console.log("[Debug] No background image specified.");
-                gameContainer.style.backgroundImage = 'none';
-                gameContainer.style.backgroundColor = '#333'; // 이미지 없을 때 기본 배경색
-            }
+        if (currentScene && bgmPlayer) {
+            // --- BGM 업데이트 로직만 남김 ---
+            const musicSrc = currentScene.backgroundMusic;
+            console.log("[Debug] Updating BGM. URL from data:", musicSrc);
+            const currentSrc = bgmPlayer.getAttribute('src');
 
-            // --- BGM 업데이트 ---
-            if (bgmPlayer) {
-                const musicSrc = currentScene.backgroundMusic; // Google Sheets에서 가져온 URL 그대로 사용
-                console.log("[Debug] Updating BGM. URL from data:", musicSrc);
-                const currentSrc = bgmPlayer.getAttribute('src');
-                // !!!! 경로 보정 로직 제거 !!!!
-
-                if (musicSrc && musicSrc !== currentSrc) {
-                    console.log("[Debug] Setting new BGM src:", musicSrc);
-                    bgmPlayer.src = musicSrc; // URL 그대로 사용
-                    bgmPlayer.load();
-                    console.log("[Debug] BGM source set.");
-                    if (audioContextStarted) {
-                         console.log("[Debug] Audio context started, attempting play...");
-                         bgmPlayer.play().catch(e => console.warn("[Debug] BGM play prevented:", e));
-                    } else { console.log("[Debug] Audio context not started, BGM won't autoplay."); }
-                } else if (!musicSrc && currentSrc) {
-                    console.log("[Debug] Pausing BGM and removing src.");
-                    bgmPlayer.pause(); bgmPlayer.currentTime = 0; bgmPlayer.removeAttribute('src');
-                } else if (musicSrc && musicSrc === currentSrc) {
-                    console.log("[Debug] BGM src is the same.");
-                     if (audioContextStarted && bgmPlayer.paused) {
-                          console.log("[Debug] Attempting to replay BGM...");
-                          bgmPlayer.play().catch(e => console.warn("[Debug] BGM replay prevented:", e));
-                     }
-                } else { console.log("[Debug] No BGM specified or src is null/empty."); }
-            } else { console.error("[Debug] #bgm-player element not found!"); }
-        } else if (!currentScene) {
-             console.log("[Debug] currentScene is null, skipping background update.");
-        } else if (!gameContainer) {
-             console.error("[Debug] #game-container element not found!");
-        }
+            if (musicSrc && musicSrc !== currentSrc) {
+                console.log("[Debug] Setting new BGM src:", musicSrc);
+                bgmPlayer.src = musicSrc;
+                bgmPlayer.load();
+                console.log("[Debug] BGM source set.");
+                if (audioContextStarted) {
+                     console.log("[Debug] Audio context started, attempting play...");
+                     bgmPlayer.play().catch(e => console.warn("[Debug] BGM play prevented:", e));
+                } else { console.log("[Debug] Audio context not started, BGM won't autoplay."); }
+            } else if (!musicSrc && currentSrc) {
+                console.log("[Debug] Pausing BGM and removing src.");
+                bgmPlayer.pause(); bgmPlayer.currentTime = 0; bgmPlayer.removeAttribute('src');
+            } else if (musicSrc && musicSrc === currentSrc) {
+                console.log("[Debug] BGM src is the same.");
+                 if (audioContextStarted && bgmPlayer.paused) {
+                      console.log("[Debug] Attempting to replay BGM...");
+                      bgmPlayer.play().catch(e => console.warn("[Debug] BGM replay prevented:", e));
+                 }
+            } else { console.log("[Debug] No BGM specified or src is null/empty."); }
+        } else if (!bgmPlayer) { console.error("[Debug] #bgm-player element not found!"); }
     }, [currentScene, audioContextStarted]); // audioContextStarted 의존성 유지
 
     // --- 첫 사용자 인터랙션 시 오디오 컨텍스트 시작 ---
@@ -272,32 +296,38 @@ function App() {
     if (error) { return <div className="flex items-center justify-center min-h-screen text-red-500 p-8 bg-gray-900 text-center">{error}</div>; }
     if (!currentScene) { return <div className="flex items-center justify-center min-h-screen text-yellow-500 bg-gray-900">장면 데이터 준비 중...</div>; }
 
+    // !!!! 스타일 계산 부분 수정 !!!!
     const questionPosStyle = getPositionStyles(currentScene.questionPosition);
     const choicesPosStyle = getPositionStyles(currentScene.choicesPosition);
+    const imagePosStyle = getPositionStyles(currentScene.imagePosition || 'center-center'); // 이미지 위치 기본값 설정
     const contentOpacityStyle = { opacity: isTransitioning ? 0 : 1 };
     const transitionClasses = "transition-opacity duration-300 ease-in-out";
 
     return (
-        // 최상위 div에 클릭 이벤트 리스너 추가 및 배경 스타일 적용
+        // 최상위 div에 클릭 이벤트 리스너 추가, 기본 배경색 적용
         <div
             id="game-container"
-            className="min-h-screen relative overflow-hidden bg-cover bg-center bg-no-repeat"
-            // style={backgroundStyle} // 상태 대신 useEffect에서 직접 적용
+            className="min-h-screen bg-gray-900 relative overflow-hidden" // 기본 배경색 설정
             onClick={handleUserInteraction}
         >
-            {/* 배경 전용 div 제거 */}
+            {/* 이미지 프레임 영역 (신규) */}
+            <div id="image-frame-container" style={{ ...imagePosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-50`}> {/* 약간 다른 딜레이 */}
+                 {currentScene && (
+                    <ImageFrame
+                        imageUrl={currentScene.backgroundImage} // 배경이미지 URL을 이미지 프레임에 전달
+                        containerStyles={currentScene.imageContainerStyles} // 이미지 프레임 스타일
+                    />
+                 )}
+            </div>
 
             {/* 질문 영역 */}
-            {/* zIndex는 스타일 객체에서 적용 */}
             <div id="question-container" style={{ ...questionPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses}`}>
                 {currentScene && ( <Question text={currentScene.question} color={currentScene.questionColor} fontSize={currentScene.questionFontSize} textAlign={currentScene.questionTextAlign} containerStyles={currentScene.questionContainerStyles} /> )}
             </div>
             {/* 답변 영역 */}
-             {/* zIndex는 스타일 객체에서 적용 */}
             <div id="choices-container" style={{ ...choicesPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-100`}>
                 {currentScene && ( <Choices choices={currentScene.choices || []} sceneData={{...currentScene, currentSceneId}} onChoiceClick={handleChoiceClick} alignment={currentScene.choicesAlignment} containerStyles={currentScene.choicesContainerStyles} /> )}
             </div>
-             {/* 오디오 태그에 playsInline 추가 */}
              <audio id="bgm-player" loop playsInline></audio>
         </div>
     );
