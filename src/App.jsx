@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 // !!!! './index.css' import 라인 제거됨 !!!!
 // CSS import는 이제 src/main.jsx 에서 처리합니다.
 
-// --- Helper 함수: Hex 색상 및 투명도 -> RGBA 변환 ---
+// --- Helper 함수들 (hexToRgba, getPositionStyles, getTextAlignClass, getChoicesAlignmentClass) ---
+// (이전 코드와 동일)
 function hexToRgba(hexInput, opacityValue = 1.0) {
     let hex = String(hexInput || '').trim();
     if (!hex.startsWith('#') && /^[0-9A-Fa-f]{6}$/.test(hex)) { hex = '#' + hex; }
@@ -18,10 +19,7 @@ function hexToRgba(hexInput, opacityValue = 1.0) {
     if (isNaN(r) || isNaN(g) || isNaN(b)) { console.warn(`Parse failed: ${hexInput}`); return `rgba(0, 0, 0, ${numericOpacity})`; }
     return `rgba(${r}, ${g}, ${b}, ${numericOpacity})`;
 }
-
-// --- Helper 함수: 위치 문자열 -> Absolute Positioning 스타일 변환 ---
 function getPositionStyles(positionString = 'center-center') {
-    // zIndex를 10으로 설정하여 다른 요소 위에 오도록 함
     const styles = { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bottom: 'auto', right: 'auto', zIndex: 10 };
     const margin = '2rem';
     if (positionString.includes('top')) { styles.top = margin; styles.transform = 'translate(-50%, 0)'; }
@@ -39,13 +37,9 @@ function getPositionStyles(positionString = 'center-center') {
     if (positionString === 'bottom-right') { styles.transform = 'translate(0, 0)'; }
     return styles;
 }
-
-// --- Helper 함수: 텍스트 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getTextAlignClass(alignString = 'center') {
      switch (alignString) { case 'left': return 'text-left'; case 'right': return 'text-right'; case 'center': default: return 'text-center'; }
 }
-
-// --- Helper 함수: 버튼 그룹 정렬 문자열 -> Tailwind 클래스 변환 ---
 function getChoicesAlignmentClass(alignmentString) {
     switch (alignmentString) { case 'left': return 'items-start'; case 'right': return 'items-end'; case 'center': default: return 'items-center'; }
 }
@@ -53,55 +47,25 @@ function getChoicesAlignmentClass(alignmentString) {
 
 // --- 컴포넌트 정의 ---
 
-// !!!! ImageFrame 컴포넌트를 App 컴포넌트 바깥으로 이동 !!!!
+// 이미지 프레임 컴포넌트
 function ImageFrame({ imageUrl, containerStyles }) {
     const [isImageLoading, setIsImageLoading] = useState(true);
     const [imageError, setImageError] = useState(false);
-
     useEffect(() => {
-        if (!imageUrl) {
-            setIsImageLoading(false);
-            setImageError(true);
-            return;
-        };
-        setIsImageLoading(true);
-        setImageError(false);
+        if (!imageUrl) { setIsImageLoading(false); setImageError(true); return; };
+        setIsImageLoading(true); setImageError(false);
         const img = new Image();
-        img.onload = () => {
-            console.log("[Debug] Image loaded for frame:", imageUrl);
-            setIsImageLoading(false);
-            setImageError(false);
-        };
-        img.onerror = () => {
-            console.error("[Debug] Failed to load image for frame:", imageUrl);
-            setIsImageLoading(false);
-            setImageError(true);
-        };
+        img.onload = () => { setIsImageLoading(false); setImageError(false); };
+        img.onerror = () => { console.error("Failed to load image:", imageUrl); setIsImageLoading(false); setImageError(true); };
         img.src = imageUrl;
     }, [imageUrl]);
-
     const containerClass = ` ${containerStyles || 'w-64 h-auto p-1 bg-gray-300 rounded shadow'}`;
-
     return (
         <div className={containerClass}>
             {isImageLoading && <div className="w-full h-32 bg-gray-200 animate-pulse rounded"></div>}
-            {!isImageLoading && imageError && (
-                <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">
-                    이미지 로드 실패
-                </div>
-            )}
-            {!isImageLoading && !imageError && imageUrl && (
-                <img
-                    src={imageUrl}
-                    alt="Scene Image"
-                    className="w-full h-full object-cover rounded"
-                />
-            )}
-             {!isImageLoading && !imageError && !imageUrl && (
-                 <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">
-                    이미지 없음
-                </div>
-             )}
+            {!isImageLoading && imageError && <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">이미지 로드 실패</div>}
+            {!isImageLoading && !imageError && imageUrl && <img src={imageUrl} alt="Scene" className="w-full h-full object-cover rounded"/>}
+            {!isImageLoading && !imageError && !imageUrl && <div className="w-full h-32 flex items-center justify-center bg-gray-100 text-gray-500 text-sm rounded">이미지 없음</div>}
         </div>
     );
 }
@@ -114,7 +78,6 @@ function Question({ text, color, fontSize, textAlign, containerStyles }) {
     if (!text) return null;
     return ( <div className={containerClass}> <p className={textClass} style={textStyle}> {text} </p> </div> );
 }
-
 // 답변 버튼 컴포넌트
 function ChoiceButton({ choice, sceneData, onChoiceClick }) {
     const { buttonFontSize = 'text-base', buttonTextColor = '#374151', buttonBgColor = '#FFFFFF', buttonBgOpacity = '1', buttonHoverTextColor = buttonTextColor, buttonHoverBgColor = buttonBgColor, } = sceneData;
@@ -125,15 +88,12 @@ function ChoiceButton({ choice, sceneData, onChoiceClick }) {
     useEffect(() => { setCurrentStyle({ color: hexToRgba(buttonTextColor), backgroundColor: hexToRgba(buttonBgColor, opacityValue), }); }, [sceneData, buttonTextColor, buttonBgColor, buttonBgOpacity, opacityValue]);
     return ( <button className={`choice-button ${buttonFontSize}`} style={currentStyle} onClick={() => onChoiceClick(choice.nextSceneId)} onMouseOver={() => setCurrentStyle(hoverStyle)} onMouseOut={() => setCurrentStyle(normalStyle)} > {choice.text} </button> );
 }
-
 // 답변 목록 컴포넌트
 function Choices({ choices, sceneData, onChoiceClick, alignment, containerStyles }) {
     const containerClass = ` ${containerStyles || ''}`;
     const choicesListClass = `flex flex-col space-y-4 ${getChoicesAlignmentClass(alignment)}`;
     const { currentSceneId } = sceneData;
-    if (!Array.isArray(choices) || choices.length === 0) {
-        return null;
-    }
+    if (!Array.isArray(choices) || choices.length === 0) { return null; }
     return ( <div className={containerClass}> <div className={choicesListClass}> {choices.map((choice, index) => ( <ChoiceButton key={`${currentSceneId}-${index}`} choice={choice} sceneData={sceneData} onChoiceClick={onChoiceClick} /> )) } </div> </div> );
 }
 
@@ -146,10 +106,10 @@ function App() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isTransitioning, setIsTransitioning] = useState(false);
-    const [shareMessage, setShareMessage] = useState(''); // 공유 메시지 상태 추가
+    const [shareMessage, setShareMessage] = useState('');
 
     // Sheet.best API URL (이전 제공 값 사용)
-    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/8eb81a40-232e-413d-8740-a0a774fd4ab6';
+    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/398ae0ca-7035-4937-aaac-2133c0ba77e2';
 
     // --- choices 문자열 파싱 함수 ---
     const parseChoices = useCallback((choicesString) => {
@@ -158,7 +118,6 @@ function App() {
         if (typeof choicesString !== 'string' || choicesString.trim() === '') return [];
         try {
             const cleanedString = choicesString.replace(/[\n\r\t]/g, '').trim();
-             // 빈 문자열이면 빈 배열 반환
             if (!cleanedString) return [];
             const parsed = JSON.parse(cleanedString);
             if (!Array.isArray(parsed)) { console.warn("Parsed choices is not an array:", parsed); return []; }
@@ -231,7 +190,7 @@ function App() {
     useEffect(() => {
         if (storyData.length > 0) {
             const scene = storyData.find(s => s.sceneId === currentSceneId);
-            if (scene) { setCurrentScene(scene); setShareMessage(''); } // 장면 변경 시 공유 메시지 초기화
+            if (scene) { setCurrentScene(scene); setShareMessage(''); }
             else { console.error(`Critical Error: Scene ID ${currentSceneId} not found.`); setError(`오류: 장면(ID: ${currentSceneId}) 없음.`); }
         }
     }, [currentSceneId, storyData]);
@@ -252,14 +211,14 @@ function App() {
     // --- 공유 버튼 클릭 처리 ---
     const handleShareClick = useCallback(async () => {
         if (!currentScene || currentScene.sceneType !== 'ending') return;
-        const shareText = `[나는 나르시시즘인가? ]\n${currentScene.question}\n\n${window.location.href}`;
+        const shareText = `[나만의 게임 결과]\n${currentScene.question}\n\n${window.location.href}`; // 공유 텍스트 수정
         try {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(shareText);
                 setShareMessage('결과가 클립보드에 복사되었습니다!');
                 console.log('Result copied to clipboard');
             } else if (navigator.share) {
-                 await navigator.share({ title: '게임 결과 공유', text: shareText, });
+                 await navigator.share({ title: '나만의 게임 결과 공유', text: shareText });
                  setShareMessage('공유 완료!');
                  console.log('Result shared via Web Share API');
             } else {
@@ -270,7 +229,7 @@ function App() {
             console.error('Failed to share:', err);
             setShareMessage('공유 중 오류가 발생했습니다.');
         }
-        setTimeout(() => setShareMessage(''), 3000);
+        setTimeout(() => setShareMessage(''), 3000); // 3초 후 메시지 숨김
     }, [currentScene]);
 
 
@@ -284,7 +243,11 @@ function App() {
     const choicesPosStyle = getPositionStyles(currentScene.choicesPosition);
     const contentOpacityStyle = { opacity: isTransitioning ? 0 : 1 };
     const transitionClasses = "transition-opacity duration-300 ease-in-out";
-    const isEndingScene = currentScene.sceneType === 'ending';
+    const isEndingScene = currentScene.sceneType === 'ending'; // 엔딩 장면 여부 확인
+
+    // 광고 링크 정보 가져오기 (엔딩 장면일 때만)
+    const adLinkUrl = isEndingScene ? currentScene.adLinkUrl : null;
+    const adLinkText = isEndingScene ? currentScene.adLinkText : null;
 
     return (
         // 최상위 div
@@ -304,9 +267,9 @@ function App() {
                 {currentScene && ( <Question text={currentScene.question} color={currentScene.questionColor} fontSize={currentScene.questionFontSize} textAlign={currentScene.questionTextAlign} containerStyles={currentScene.questionContainerStyles} /> )}
             </div>
 
-            {/* 답변 영역 또는 공유 버튼 영역 */}
+            {/* 답변 영역 또는 공유/광고 버튼 영역 */}
             <div id="choices-or-share-container" style={{ ...choicesPosStyle, ...contentOpacityStyle }} className={`max-w-[90%] ${transitionClasses} delay-100`}>
-                {currentScene && !isEndingScene && ( // 엔딩 아닐 때
+                {currentScene && !isEndingScene && ( // 엔딩이 아닐 때만 답변 표시
                     <Choices
                         choices={currentScene.choices || []}
                         sceneData={{...currentScene, currentSceneId}}
@@ -315,8 +278,9 @@ function App() {
                         containerStyles={currentScene.choicesContainerStyles}
                     />
                 )}
-                {currentScene && isEndingScene && ( // 엔딩일 때
+                {currentScene && isEndingScene && ( // 엔딩일 때만 버튼들 표시
                     <div className={`flex flex-col items-${currentScene.choicesAlignment || 'center'} ${currentScene.choicesContainerStyles || 'p-6 mb-8'}`}>
+                        {/* 공유 버튼 */}
                         <button
                             onClick={handleShareClick}
                             className="choice-button bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 rounded-lg shadow-md transition duration-300"
@@ -324,16 +288,30 @@ function App() {
                             결과 공유하기
                         </button>
                         {shareMessage && ( <p className="mt-2 text-sm text-green-400">{shareMessage}</p> )}
+
+                         {/* 다시 시작 버튼 */}
                          <button
                             onClick={() => handleChoiceClick(1)} // 1번 씬으로
                             className="choice-button bg-gray-500 hover:bg-gray-600 text-white px-8 py-3 rounded-lg shadow-md transition duration-300 mt-4"
                         >
                             다시 시작하기
                         </button>
+
+                        {/* 광고 링크 (URL과 텍스트가 있을 때만 표시) */}
+                        {adLinkUrl && adLinkText && (
+                             <a
+                                href={adLinkUrl}
+                                target="_blank" // 새 탭에서 열기
+                                rel="noopener noreferrer" // 보안 권장 사항
+                                className="mt-6 text-sm text-yellow-400 hover:text-yellow-300 underline transition duration-300" // 광고 링크 스타일
+                            >
+                                {adLinkText}
+                            </a>
+                        )}
                     </div>
                 )}
             </div>
-             {/* 오디오 태그 제거됨 */}
+             {/* 오디오 태그 제거됨. */}
         </div>
     );
 }
