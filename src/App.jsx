@@ -109,7 +109,7 @@ function App() {
     const [shareMessage, setShareMessage] = useState('');
 
     // Sheet.best API URL (이전 제공 값 사용)
-    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/398ae0ca-7035-4937-aaac-2133c0ba77e2';
+    const SHEET_BEST_URL = 'https://api.sheetbest.com/sheets/3c5318a4-34c2-40e9-9dec-92894af0feb7';
 
     // --- choices 문자열 파싱 함수 ---
     const parseChoices = useCallback((choicesString) => {
